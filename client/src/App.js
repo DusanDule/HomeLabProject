@@ -6,12 +6,16 @@ function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [user, setUser] = useState(null);
   const [loginData, setLoginData] = useState({ username: '', password: '' });
-  const [registerData, setRegisterData] = useState({ username: '', password: '', invitationCode: '' });
+  const [registerData, setRegisterData] = useState({ username: '', password: '', email: '', invitationCode: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
   const [showAdminMenu, setShowAdminMenu] = useState(false);
   const [users, setUsers] = useState([]);
+  const [currentInvitationCode, setCurrentInvitationCode] = useState('Dule-1212');
+  const [newInvitationCode, setNewInvitationCode] = useState('');
+  const [showPasswordReset, setShowPasswordReset] = useState({});
+  const [newPasswords, setNewPasswords] = useState({});
 
   useEffect(() => {
     // Check if user is already logged in
@@ -42,6 +46,18 @@ function App() {
       setUsers(response.data.users);
     } catch (error) {
       console.error('Error fetching users:', error);
+    }
+  };
+
+  const fetchInvitationCode = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get('/api/admin/invitation-code', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setCurrentInvitationCode(response.data.invitationCode);
+    } catch (error) {
+      console.error('Error fetching invitation code:', error);
     }
   };
 
@@ -94,7 +110,7 @@ function App() {
       await axios.post('/api/register', registerData);
       setError('');
       setShowRegister(false);
-      setRegisterData({ username: '', password: '', invitationCode: '' });
+      setRegisterData({ username: '', password: '', email: '', invitationCode: '' });
       alert('Registrierung erfolgreich! Du kannst dich jetzt anmelden.');
     } catch (error) {
       setError(error.response?.data?.message || 'Registrierung fehlgeschlagen');
@@ -119,6 +135,53 @@ function App() {
     }
   };
 
+  const handleUpdateInvitationCode = async () => {
+    if (!newInvitationCode.trim()) {
+      setError('Bitte gib einen neuen Einladungscode ein');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      await axios.put('/api/admin/invitation-code', 
+        { newCode: newInvitationCode },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setCurrentInvitationCode(newInvitationCode);
+      setNewInvitationCode('');
+      alert('Einladungscode erfolgreich aktualisiert!');
+    } catch (error) {
+      setError(error.response?.data?.message || 'Fehler beim Aktualisieren des Einladungscodes');
+    }
+  };
+
+  const handleResetPassword = async (userId) => {
+    const newPassword = newPasswords[userId];
+    if (!newPassword || newPassword.length < 6) {
+      setError('Neues Passwort muss mindestens 6 Zeichen lang sein');
+      return;
+    }
+
+    if (!window.confirm('Bist du sicher, dass du das Passwort für diesen User zurücksetzen möchtest?')) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      await axios.put(`/api/users/${userId}/reset-password`, 
+        { newPassword },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      // Reset the form
+      setShowPasswordReset({ ...showPasswordReset, [userId]: false });
+      setNewPasswords({ ...newPasswords, [userId]: '' });
+      alert('Passwort erfolgreich zurückgesetzt!');
+    } catch (error) {
+      setError(error.response?.data?.message || 'Fehler beim Zurücksetzen des Passworts');
+    }
+  };
+
   if (isLoggedIn) {
     return (
       <div className="app">
@@ -130,7 +193,10 @@ function App() {
                 <button 
                   onClick={() => {
                     setShowAdminMenu(!showAdminMenu);
-                    if (!showAdminMenu) fetchUsers();
+                    if (!showAdminMenu) {
+                      fetchUsers();
+                      fetchInvitationCode();
+                    }
                   }} 
                   className="admin-btn"
                 >
@@ -157,6 +223,7 @@ function App() {
                     <div className="table-header">
                       <div>ID</div>
                       <div>Username</div>
+                      <div>Email</div>
                       <div>Rolle</div>
                       <div>Erstellt</div>
                       <div>Aktionen</div>
@@ -165,37 +232,97 @@ function App() {
                       <div key={user.id} className="table-row">
                         <div>{user.id}</div>
                         <div>{user.username}</div>
+                        <div>{user.email}</div>
                         <div>
                           <span className={`role-badge ${user.role}`}>
                             {user.role === 'admin' ? '👑 Admin' : '👤 User'}
                           </span>
                         </div>
                         <div>{new Date(user.createdAt).toLocaleDateString('de-DE')}</div>
-                        <div>
+                        <div className="action-buttons">
                           {user.role !== 'admin' && (
-                            <button 
-                              onClick={() => handleDeleteUser(user.id)}
-                              className="delete-btn"
-                            >
-                              🗑️ Löschen
-                            </button>
+                            <>
+                              <button 
+                                onClick={() => setShowPasswordReset({ ...showPasswordReset, [user.id]: !showPasswordReset[user.id] })}
+                                className="reset-password-btn"
+                              >
+                                🔑 Passwort
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteUser(user.id)}
+                                className="delete-btn"
+                              >
+                                🗑️ Löschen
+                              </button>
+                            </>
                           )}
                         </div>
                       </div>
                     ))}
+                    {users.some(user => showPasswordReset[user.id]) && (
+                      <div className="password-reset-section">
+                        {users.filter(user => showPasswordReset[user.id]).map(user => (
+                          <div key={`reset-${user.id}`} className="password-reset-form">
+                            <h4>Passwort für {user.username} zurücksetzen</h4>
+                            <div className="reset-form-group">
+                              <input
+                                type="password"
+                                placeholder="Neues Passwort (min. 6 Zeichen)"
+                                value={newPasswords[user.id] || ''}
+                                onChange={(e) => setNewPasswords({ ...newPasswords, [user.id]: e.target.value })}
+                                className="reset-input"
+                              />
+                              <button 
+                                onClick={() => handleResetPassword(user.id)}
+                                className="confirm-reset-btn"
+                              >
+                                ✅ Bestätigen
+                              </button>
+                              <button 
+                                onClick={() => {
+                                  setShowPasswordReset({ ...showPasswordReset, [user.id]: false });
+                                  setNewPasswords({ ...newPasswords, [user.id]: '' });
+                                }}
+                                className="cancel-reset-btn"
+                              >
+                                ❌ Abbrechen
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="invitation-info">
                   <h3>📧 Einladungscode</h3>
-                  <p>Teile diesen Code mit neuen Usern:</p>
+                  <p>Aktueller Code:</p>
                   <div className="invitation-code">
-                    <code>Dule-1212</code>
+                    <code>{currentInvitationCode}</code>
                     <button 
-                      onClick={() => navigator.clipboard.writeText('Dule-1212')}
+                      onClick={() => navigator.clipboard.writeText(currentInvitationCode)}
                       className="copy-btn"
                     >
                       📋 Kopieren
                     </button>
+                  </div>
+                  <div className="invitation-code-update">
+                    <h4>Einladungscode ändern:</h4>
+                    <div className="update-form">
+                      <input
+                        type="text"
+                        placeholder="Neuer Einladungscode"
+                        value={newInvitationCode}
+                        onChange={(e) => setNewInvitationCode(e.target.value)}
+                        className="code-input"
+                      />
+                      <button 
+                        onClick={handleUpdateInvitationCode}
+                        className="update-code-btn"
+                      >
+                        🔄 Aktualisieren
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -236,6 +363,18 @@ function App() {
                 />
               </div>
               <div className="form-group">
+                <label htmlFor="reg-email">Email:</label>
+                <input
+                  type="email"
+                  id="reg-email"
+                  name="email"
+                  value={registerData.email}
+                  onChange={handleRegisterInputChange}
+                  required
+                  placeholder="Email-Adresse eingeben"
+                />
+              </div>
+              <div className="form-group">
                 <label htmlFor="reg-password">Passwort:</label>
                 <input
                   type="password"
@@ -272,7 +411,7 @@ function App() {
                 onClick={() => {
                   setShowRegister(false);
                   setError('');
-                  setRegisterData({ username: '', password: '', invitationCode: '' });
+                  setRegisterData({ username: '', password: '', email: '', invitationCode: '' });
                 }}
                 className="switch-btn"
               >

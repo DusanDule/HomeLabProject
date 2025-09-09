@@ -225,7 +225,7 @@
 
 .table-header {
   display: grid;
-  grid-template-columns: 60px 1fr 120px 120px 100px;
+  grid-template-columns: 60px 1fr 1fr 120px 120px 150px;
   background: #e9ecef;
   font-weight: 600;
   color: #495057;
@@ -235,7 +235,7 @@
 
 .table-row {
   display: grid;
-  grid-template-columns: 60px 1fr 120px 120px 100px;
+  grid-template-columns: 60px 1fr 1fr 120px 120px 150px;
   padding: 15px;
   border-bottom: 1px solid #dee2e6;
   align-items: center;
@@ -280,6 +280,86 @@
 
 .delete-btn:hover {
   background: #c82333;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.reset-password-btn {
+  background: #ffc107;
+  color: #212529;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background-color 0.3s ease;
+}
+
+.reset-password-btn:hover {
+  background: #e0a800;
+}
+
+.password-reset-section {
+  background: #fff3cd;
+  border: 1px solid #ffeaa7;
+  border-radius: 8px;
+  padding: 20px;
+  margin-top: 15px;
+}
+
+.password-reset-form h4 {
+  margin-bottom: 15px;
+  color: #856404;
+}
+
+.reset-form-group {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.reset-input {
+  flex: 1;
+  min-width: 200px;
+  padding: 8px 12px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.confirm-reset-btn {
+  background: #28a745;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background-color 0.3s ease;
+}
+
+.confirm-reset-btn:hover {
+  background: #218838;
+}
+
+.cancel-reset-btn {
+  background: #6c757d;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background-color 0.3s ease;
+}
+
+.cancel-reset-btn:hover {
+  background: #5a6268;
 }
 
 .invitation-info {
@@ -327,6 +407,54 @@
   background: rgba(255, 255, 255, 0.3);
 }
 
+.invitation-code-update {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.invitation-code-update h4 {
+  margin-bottom: 15px;
+  font-size: 16px;
+}
+
+.update-form {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.code-input {
+  flex: 1;
+  min-width: 200px;
+  padding: 10px 15px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  font-size: 14px;
+}
+
+.code-input::placeholder {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.update-code-btn {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 10px 15px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.3s ease;
+}
+
+.update-code-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
 /* Responsive Design */
 @media (max-width: 480px) {
   .login-card {
@@ -345,9 +473,32 @@
   }
 
   .table-header, .table-row {
-    grid-template-columns: 50px 1fr 80px 80px 80px;
+    grid-template-columns: 50px 1fr 1fr 80px 80px 120px;
     font-size: 12px;
     padding: 10px;
+  }
+
+  .action-buttons {
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .reset-form-group {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .reset-input {
+    min-width: auto;
+  }
+
+  .update-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .code-input {
+    min-width: auto;
   }
 
   .invitation-code {

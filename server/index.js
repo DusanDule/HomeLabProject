@@ -16,13 +16,14 @@ const users = [
     id: 1,
     username: config.ADMIN_USERNAME,
     password: bcrypt.hashSync(config.ADMIN_PASSWORD, 10),
+    email: 'admin@example.com',
     role: 'admin',
     createdAt: new Date()
   }
 ];
 
-// Invitation codes
-const INVITATION_CODE = 'Dule-1212';
+// Configurable invitation code (starts with default)
+let INVITATION_CODE = 'Dule-1212';
 
 // Middleware to verify JWT token
 const authenticateToken = (req, res, next) => {
@@ -100,10 +101,10 @@ app.get('/api/protected', authenticateToken, (req, res) => {
 // User registration endpoint
 app.post('/api/register', async (req, res) => {
   try {
-    const { username, password, invitationCode } = req.body;
+    const { username, password, email, invitationCode } = req.body;
 
-    if (!username || !password || !invitationCode) {
-      return res.status(400).json({ message: 'Username, password and invitation code are required' });
+    if (!username || !password || !email || !invitationCode) {
+      return res.status(400).json({ message: 'Username, password, email and invitation code are required' });
     }
 
     if (invitationCode !== INVITATION_CODE) {
@@ -116,11 +117,18 @@ app.post('/api/register', async (req, res) => {
       return res.status(400).json({ message: 'Username already exists' });
     }
 
+    // Check if email already exists
+    const existingEmail = users.find(u => u.email === email);
+    if (existingEmail) {
+      return res.status(400).json({ message: 'Email already exists' });
+    }
+
     // Create new user
     const newUser = {
       id: users.length + 1,
       username,
       password: bcrypt.hashSync(password, 10),
+      email,
       role: 'user',
       createdAt: new Date()
     };
@@ -129,7 +137,7 @@ app.post('/api/register', async (req, res) => {
 
     res.json({
       message: 'Registration successful',
-      user: { id: newUser.id, username: newUser.username, role: newUser.role }
+      user: { id: newUser.id, username: newUser.username, email: newUser.email, role: newUser.role }
     });
   } catch (error) {
     console.error('Registration error:', error);
@@ -143,6 +151,7 @@ app.get('/api/users', authenticateToken, requireAdmin, (req, res) => {
     const userList = users.map(user => ({
       id: user.id,
       username: user.username,
+      email: user.email,
       role: user.role,
       createdAt: user.createdAt
     }));
@@ -171,6 +180,64 @@ app.delete('/api/users/:id', authenticateToken, requireAdmin, (req, res) => {
     res.json({ message: 'User deleted successfully' });
   } catch (error) {
     console.error('Delete user error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Update invitation code (admin only)
+app.put('/api/admin/invitation-code', authenticateToken, requireAdmin, (req, res) => {
+  try {
+    const { newCode } = req.body;
+    
+    if (!newCode || newCode.trim().length < 3) {
+      return res.status(400).json({ message: 'Invitation code must be at least 3 characters long' });
+    }
+    
+    INVITATION_CODE = newCode.trim();
+    res.json({ 
+      message: 'Invitation code updated successfully',
+      newCode: INVITATION_CODE
+    });
+  } catch (error) {
+    console.error('Update invitation code error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Get current invitation code (admin only)
+app.get('/api/admin/invitation-code', authenticateToken, requireAdmin, (req, res) => {
+  try {
+    res.json({ invitationCode: INVITATION_CODE });
+  } catch (error) {
+    console.error('Get invitation code error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Reset user password (admin only)
+app.put('/api/users/:id/reset-password', authenticateToken, requireAdmin, (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    const { newPassword } = req.body;
+    
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({ message: 'New password must be at least 6 characters long' });
+    }
+    
+    const user = users.find(u => u.id === userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    // Update password
+    user.password = bcrypt.hashSync(newPassword, 10);
+    
+    res.json({ 
+      message: 'Password reset successfully',
+      user: { id: user.id, username: user.username, email: user.email }
+    });
+  } catch (error) {
+    console.error('Reset password error:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 });
