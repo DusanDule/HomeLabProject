@@ -21,9 +21,15 @@ function App() {
   const [showRoleChange, setShowRoleChange] = useState({});
   const [items, setItems] = useState([]);
   const [showItemManagement, setShowItemManagement] = useState(false);
-  const [newItem, setNewItem] = useState({ name: '', description: '' });
+  const [newItem, setNewItem] = useState({ name: '', description: '', roomId: '' });
   const [showItemAnalytics, setShowItemAnalytics] = useState({});
   const [itemAnalytics, setItemAnalytics] = useState({});
+  const [rooms, setRooms] = useState([]);
+  const [selectedRoom, setSelectedRoom] = useState('all');
+  const [showRoomManagement, setShowRoomManagement] = useState(false);
+  const [newRoom, setNewRoom] = useState({ name: '', description: '' });
+  const [showItemEdit, setShowItemEdit] = useState({});
+  const [editItemData, setEditItemData] = useState({});
 
   useEffect(() => {
     // Check if user is already logged in
@@ -69,15 +75,28 @@ function App() {
     }
   };
 
-  const fetchItems = async () => {
+  const fetchItems = async (roomId = null) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('/api/items', {
+      const url = roomId && roomId !== 'all' ? `/api/items?roomId=${roomId}` : '/api/items';
+      const response = await axios.get(url, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setItems(response.data.items);
     } catch (error) {
       console.error('Error fetching items:', error);
+    }
+  };
+
+  const fetchRooms = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get('/api/rooms', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setRooms(response.data.rooms);
+    } catch (error) {
+      console.error('Error fetching rooms:', error);
     }
   };
 
@@ -92,8 +111,8 @@ function App() {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      setNewItem({ name: '', description: '' });
-      fetchItems(); // Refresh items list
+      setNewItem({ name: '', description: '', roomId: '' });
+      fetchItems(selectedRoom); // Refresh items list
       alert('Item erfolgreich erstellt!');
     } catch (error) {
       setError(error.response?.data?.message || 'Fehler beim Erstellen des Items');
@@ -147,6 +166,74 @@ function App() {
     } catch (error) {
       console.error('Error fetching item analytics:', error);
     }
+  };
+
+  const handleCreateRoom = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post('/api/rooms', newRoom, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      setNewRoom({ name: '', description: '' });
+      fetchRooms(); // Refresh rooms list
+      alert('Raum erfolgreich erstellt!');
+    } catch (error) {
+      setError(error.response?.data?.message || 'Fehler beim Erstellen des Raums');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateItem = async (itemId) => {
+    const editData = editItemData[itemId];
+    if (!editData) return;
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const token = localStorage.getItem('token');
+      await axios.put(`/api/items/${itemId}`, editData, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      setShowItemEdit({ ...showItemEdit, [itemId]: false });
+      setEditItemData({ ...editItemData, [itemId]: {} });
+      fetchItems(selectedRoom); // Refresh items list
+      alert('Item erfolgreich aktualisiert!');
+    } catch (error) {
+      setError(error.response?.data?.message || 'Fehler beim Aktualisieren des Items');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetStrokes = async (itemId, itemName) => {
+    if (!window.confirm(`Bist du sicher, dass du alle Striche für "${itemName}" zurücksetzen möchtest?`)) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.put(`/api/items/${itemId}/reset-strokes`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      fetchItems(selectedRoom); // Refresh items list
+      alert(`✅ ${response.data.message} (${response.data.removedStrokes} Striche entfernt)`);
+    } catch (error) {
+      setError(error.response?.data?.message || 'Fehler beim Zurücksetzen der Striche');
+    }
+  };
+
+  const handleRoomFilter = (roomId) => {
+    setSelectedRoom(roomId);
+    fetchItems(roomId);
   };
 
   const handleLogin = async (e) => {
@@ -346,11 +433,23 @@ function App() {
                       setShowItemManagement(!showItemManagement);
                       if (!showItemManagement) {
                         fetchItems();
+                        fetchRooms();
                       }
                     }} 
                     className="items-btn"
                   >
                     {showItemManagement ? 'Dashboard' : '📝 Items'}
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setShowRoomManagement(!showRoomManagement);
+                      if (!showRoomManagement) {
+                        fetchRooms();
+                      }
+                    }} 
+                    className="rooms-btn"
+                  >
+                    {showRoomManagement ? 'Dashboard' : '🏠 Räume'}
                   </button>
                   <button 
                     onClick={() => {
@@ -372,6 +471,7 @@ function App() {
                     setShowItemManagement(!showItemManagement);
                     if (!showItemManagement) {
                       fetchItems();
+                      fetchRooms();
                     }
                   }} 
                   className="items-btn"
@@ -448,7 +548,78 @@ function App() {
                 </form>
               </div>
             )}
-            {showItemManagement ? (
+            {showRoomManagement && user?.role === 'admin' ? (
+              <div className="room-management">
+                <h2>🏠 Raum Management</h2>
+                
+                <div className="create-room-section">
+                  <h3>Neuen Raum erstellen</h3>
+                  <form onSubmit={handleCreateRoom} className="create-room-form">
+                    <div className="form-group">
+                      <label htmlFor="room-name">Raum Name:</label>
+                      <input
+                        type="text"
+                        id="room-name"
+                        value={newRoom.name}
+                        onChange={(e) => setNewRoom({ ...newRoom, name: e.target.value })}
+                        required
+                        placeholder="z.B. Küche, Werkstatt, Büro..."
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label htmlFor="room-description">Beschreibung (optional):</label>
+                      <input
+                        type="text"
+                        id="room-description"
+                        value={newRoom.description}
+                        onChange={(e) => setNewRoom({ ...newRoom, description: e.target.value })}
+                        placeholder="Kurze Beschreibung des Raums..."
+                      />
+                    </div>
+                    {error && <div className="error-message">{error}</div>}
+                    <button 
+                      type="submit" 
+                      className="login-btn"
+                      disabled={loading}
+                    >
+                      {loading ? 'Erstellen...' : 'Raum erstellen'}
+                    </button>
+                  </form>
+                </div>
+
+                <div className="rooms-list">
+                  <h3>Alle Räume</h3>
+                  <div className="rooms-grid">
+                    {rooms.map(room => (
+                      <div key={room.id} className="room-card">
+                        <div className="room-header">
+                          <h4>{room.name}</h4>
+                          {room.id !== 1 && (
+                            <button 
+                              onClick={() => {
+                                if (window.confirm(`Bist du sicher, dass du den Raum "${room.name}" löschen möchtest?`)) {
+                                  // TODO: Implement room deletion
+                                  alert('Raum-Löschung wird implementiert...');
+                                }
+                              }}
+                              className="delete-room-btn"
+                            >
+                              🗑️
+                            </button>
+                          )}
+                        </div>
+                        {room.description && (
+                          <p className="room-description">{room.description}</p>
+                        )}
+                        <div className="room-stats">
+                          <span>Items: {room.itemCount || 0}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : showItemManagement ? (
               <div className="item-management">
                 <h2>📝 {user?.role === 'admin' ? 'Item Management' : 'Strichliste'}</h2>
                 
@@ -466,6 +637,20 @@ function App() {
                           required
                           placeholder="z.B. Handschuhe, Coca Cola..."
                         />
+                      </div>
+                      <div className="form-group">
+                        <label htmlFor="item-room">Raum:</label>
+                        <select
+                          id="item-room"
+                          value={newItem.roomId}
+                          onChange={(e) => setNewItem({ ...newItem, roomId: e.target.value })}
+                          required
+                        >
+                          <option value="">Raum auswählen...</option>
+                          {rooms.map(room => (
+                            <option key={room.id} value={room.id}>{room.name}</option>
+                          ))}
+                        </select>
                       </div>
                       <div className="form-group">
                         <label htmlFor="item-description">Beschreibung (optional):</label>
@@ -492,9 +677,24 @@ function App() {
                 <div className="items-list">
                   <div className="items-header">
                     <h3>{user?.role === 'admin' ? 'Alle Items' : 'Verfügbare Items'}</h3>
-                    <button onClick={fetchItems} className="refresh-btn">
-                      🔄 Aktualisieren
-                    </button>
+                    <div className="items-controls">
+                      <div className="room-filter">
+                        <label htmlFor="room-filter">Raum filtern:</label>
+                        <select
+                          id="room-filter"
+                          value={selectedRoom}
+                          onChange={(e) => handleRoomFilter(e.target.value)}
+                        >
+                          <option value="all">Alle Räume</option>
+                          {rooms.map(room => (
+                            <option key={room.id} value={room.id}>{room.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <button onClick={() => fetchItems(selectedRoom)} className="refresh-btn">
+                        🔄 Aktualisieren
+                      </button>
+                    </div>
                   </div>
                   
                   {items.length === 0 ? (
@@ -507,9 +707,36 @@ function App() {
                       {items.map(item => (
                         <div key={item.id} className="item-card">
                           <div className="item-header">
-                            <h4>{item.name}</h4>
+                            <div className="item-title">
+                              <h4>{item.name}</h4>
+                              <span className="item-room">🏠 {item.roomName}</span>
+                            </div>
                             {user?.role === 'admin' && (
                               <div className="item-actions">
+                                <button 
+                                  onClick={() => {
+                                    setShowItemEdit({ ...showItemEdit, [item.id]: !showItemEdit[item.id] });
+                                    if (!showItemEdit[item.id]) {
+                                      setEditItemData({ 
+                                        ...editItemData, 
+                                        [item.id]: { 
+                                          name: item.name, 
+                                          description: item.description, 
+                                          roomId: item.roomId 
+                                        } 
+                                      });
+                                    }
+                                  }}
+                                  className="edit-item-btn"
+                                >
+                                  ✏️ Bearbeiten
+                                </button>
+                                <button 
+                                  onClick={() => handleResetStrokes(item.id, item.name)}
+                                  className="reset-strokes-btn"
+                                >
+                                  🔄 Reset
+                                </button>
                                 <button 
                                   onClick={() => {
                                     setShowItemAnalytics({ ...showItemAnalytics, [item.id]: !showItemAnalytics[item.id] });
@@ -552,6 +779,72 @@ function App() {
                           >
                             ➕ Strich hinzufügen
                           </button>
+                          
+                          {showItemEdit[item.id] && (
+                            <div className="item-edit-form">
+                              <h5>✏️ Item bearbeiten</h5>
+                              <div className="edit-form-group">
+                                <input
+                                  type="text"
+                                  placeholder="Neuer Name"
+                                  value={editItemData[item.id]?.name || ''}
+                                  onChange={(e) => setEditItemData({ 
+                                    ...editItemData, 
+                                    [item.id]: { 
+                                      ...editItemData[item.id], 
+                                      name: e.target.value 
+                                    } 
+                                  })}
+                                  className="edit-input"
+                                />
+                                <select
+                                  value={editItemData[item.id]?.roomId || ''}
+                                  onChange={(e) => setEditItemData({ 
+                                    ...editItemData, 
+                                    [item.id]: { 
+                                      ...editItemData[item.id], 
+                                      roomId: e.target.value 
+                                    } 
+                                  })}
+                                  className="edit-select"
+                                >
+                                  {rooms.map(room => (
+                                    <option key={room.id} value={room.id}>{room.name}</option>
+                                  ))}
+                                </select>
+                                <input
+                                  type="text"
+                                  placeholder="Neue Beschreibung"
+                                  value={editItemData[item.id]?.description || ''}
+                                  onChange={(e) => setEditItemData({ 
+                                    ...editItemData, 
+                                    [item.id]: { 
+                                      ...editItemData[item.id], 
+                                      description: e.target.value 
+                                    } 
+                                  })}
+                                  className="edit-input"
+                                />
+                                <div className="edit-actions">
+                                  <button 
+                                    onClick={() => handleUpdateItem(item.id)}
+                                    className="save-edit-btn"
+                                  >
+                                    💾 Speichern
+                                  </button>
+                                  <button 
+                                    onClick={() => {
+                                      setShowItemEdit({ ...showItemEdit, [item.id]: false });
+                                      setEditItemData({ ...editItemData, [item.id]: {} });
+                                    }}
+                                    className="cancel-edit-btn"
+                                  >
+                                    ❌ Abbrechen
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                           
                           {showItemAnalytics[item.id] && itemAnalytics[item.id] && (
                             <div className="item-analytics">

@@ -31,6 +31,17 @@ const items = [];
 // In-memory strokes storage (in production, use a database)
 const strokes = [];
 
+// In-memory rooms storage (in production, use a database)
+const rooms = [
+  {
+    id: 1,
+    name: 'Allgemein',
+    description: 'Standard-Raum für alle Items',
+    createdAt: new Date(),
+    createdBy: 1
+  }
+];
+
 // Middleware to verify JWT token
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
@@ -325,22 +336,36 @@ app.put('/api/users/:id/role', authenticateToken, requireAdmin, (req, res) => {
 // Create new item
 app.post('/api/items', authenticateToken, requireAdmin, (req, res) => {
   try {
-    const { name, description } = req.body;
+    const { name, description, roomId } = req.body;
     
     if (!name || name.trim().length === 0) {
       return res.status(400).json({ message: 'Item name is required' });
     }
     
-    // Check if item already exists
-    const existingItem = items.find(item => item.name.toLowerCase() === name.toLowerCase());
+    if (!roomId) {
+      return res.status(400).json({ message: 'Room ID is required' });
+    }
+    
+    // Check if room exists
+    const room = rooms.find(r => r.id === parseInt(roomId));
+    if (!room) {
+      return res.status(400).json({ message: 'Room not found' });
+    }
+    
+    // Check if item already exists in this room
+    const existingItem = items.find(item => 
+      item.name.toLowerCase() === name.toLowerCase() && item.roomId === parseInt(roomId)
+    );
     if (existingItem) {
-      return res.status(400).json({ message: 'Item with this name already exists' });
+      return res.status(400).json({ message: 'Item with this name already exists in this room' });
     }
     
     const newItem = {
       id: items.length + 1,
       name: name.trim(),
       description: description ? description.trim() : '',
+      roomId: parseInt(roomId),
+      roomName: room.name,
       createdAt: new Date(),
       createdBy: req.user.id
     };
@@ -361,10 +386,16 @@ app.post('/api/items', authenticateToken, requireAdmin, (req, res) => {
 app.get('/api/items', authenticateToken, (req, res) => {
   try {
     const user = users.find(u => u.id === req.user.id);
+    const { roomId } = req.query; // Optional room filter
+    
+    let filteredItems = items;
+    if (roomId) {
+      filteredItems = items.filter(item => item.roomId === parseInt(roomId));
+    }
     
     if (user.role === 'admin') {
       // Admin sees all items with stroke counts
-      const itemsWithStrokes = items.map(item => {
+      const itemsWithStrokes = filteredItems.map(item => {
         const itemStrokes = strokes.filter(stroke => stroke.itemId === item.id);
         return {
           ...item,
@@ -375,10 +406,11 @@ app.get('/api/items', authenticateToken, (req, res) => {
       res.json({ items: itemsWithStrokes });
     } else {
       // Users see only item names and IDs
-      const userItems = items.map(item => ({
+      const userItems = filteredItems.map(item => ({
         id: item.id,
         name: item.name,
-        description: item.description
+        description: item.description,
+        roomName: item.roomName
       }));
       res.json({ items: userItems });
     }
@@ -503,6 +535,216 @@ app.get('/api/items/:id/analytics', authenticateToken, requireAdmin, (req, res) 
     res.json(analytics);
   } catch (error) {
     console.error('Get item analytics error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Update item (Admin only)
+app.put('/api/items/:id', authenticateToken, requireAdmin, (req, res) => {
+  try {
+    const itemId = parseInt(req.params.id);
+    const { name, description, roomId } = req.body;
+    
+    const item = items.find(i => i.id === itemId);
+    if (!item) {
+      return res.status(404).json({ message: 'Item not found' });
+    }
+    
+    if (name && name.trim().length > 0) {
+      // Check if new name already exists in the same room
+      const existingItem = items.find(i => 
+        i.id !== itemId && 
+        i.name.toLowerCase() === name.toLowerCase() && 
+        i.roomId === (roomId ? parseInt(roomId) : item.roomId)
+      );
+      if (existingItem) {
+        return res.status(400).json({ message: 'Item with this name already exists in this room' });
+      }
+      item.name = name.trim();
+    }
+    
+    if (description !== undefined) {
+      item.description = description ? description.trim() : '';
+    }
+    
+    if (roomId) {
+      const room = rooms.find(r => r.id === parseInt(roomId));
+      if (!room) {
+        return res.status(400).json({ message: 'Room not found' });
+      }
+      item.roomId = parseInt(roomId);
+      item.roomName = room.name;
+    }
+    
+    res.json({
+      message: 'Item updated successfully',
+      item: item
+    });
+  } catch (error) {
+    console.error('Update item error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Reset strokes for item (Admin only)
+app.put('/api/items/:id/reset-strokes', authenticateToken, requireAdmin, (req, res) => {
+  try {
+    const itemId = parseInt(req.params.id);
+    
+    const item = items.find(i => i.id === itemId);
+    if (!item) {
+      return res.status(404).json({ message: 'Item not found' });
+    }
+    
+    // Remove all strokes for this item
+    const strokeIndices = [];
+    strokes.forEach((stroke, index) => {
+      if (stroke.itemId === itemId) {
+        strokeIndices.push(index);
+      }
+    });
+    
+    // Remove strokes in reverse order to maintain indices
+    strokeIndices.reverse().forEach(index => {
+      strokes.splice(index, 1);
+    });
+    
+    res.json({
+      message: `All strokes for "${item.name}" have been reset`,
+      removedStrokes: strokeIndices.length
+    });
+  } catch (error) {
+    console.error('Reset strokes error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Room Management Endpoints (Admin only)
+// Create new room
+app.post('/api/rooms', authenticateToken, requireAdmin, (req, res) => {
+  try {
+    const { name, description } = req.body;
+    
+    if (!name || name.trim().length === 0) {
+      return res.status(400).json({ message: 'Room name is required' });
+    }
+    
+    // Check if room already exists
+    const existingRoom = rooms.find(room => room.name.toLowerCase() === name.toLowerCase());
+    if (existingRoom) {
+      return res.status(400).json({ message: 'Room with this name already exists' });
+    }
+    
+    const newRoom = {
+      id: rooms.length + 1,
+      name: name.trim(),
+      description: description ? description.trim() : '',
+      createdAt: new Date(),
+      createdBy: req.user.id
+    };
+    
+    rooms.push(newRoom);
+    
+    res.json({
+      message: 'Room created successfully',
+      room: newRoom
+    });
+  } catch (error) {
+    console.error('Create room error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Get all rooms
+app.get('/api/rooms', authenticateToken, (req, res) => {
+  try {
+    const roomsWithItemCounts = rooms.map(room => {
+      const roomItems = items.filter(item => item.roomId === room.id);
+      return {
+        ...room,
+        itemCount: roomItems.length
+      };
+    });
+    
+    res.json({ rooms: roomsWithItemCounts });
+  } catch (error) {
+    console.error('Get rooms error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Update room (Admin only)
+app.put('/api/rooms/:id', authenticateToken, requireAdmin, (req, res) => {
+  try {
+    const roomId = parseInt(req.params.id);
+    const { name, description } = req.body;
+    
+    const room = rooms.find(r => r.id === roomId);
+    if (!room) {
+      return res.status(404).json({ message: 'Room not found' });
+    }
+    
+    if (name && name.trim().length > 0) {
+      // Check if new name already exists
+      const existingRoom = rooms.find(r => 
+        r.id !== roomId && r.name.toLowerCase() === name.toLowerCase()
+      );
+      if (existingRoom) {
+        return res.status(400).json({ message: 'Room with this name already exists' });
+      }
+      room.name = name.trim();
+    }
+    
+    if (description !== undefined) {
+      room.description = description ? description.trim() : '';
+    }
+    
+    // Update room name in all items
+    items.forEach(item => {
+      if (item.roomId === roomId) {
+        item.roomName = room.name;
+      }
+    });
+    
+    res.json({
+      message: 'Room updated successfully',
+      room: room
+    });
+  } catch (error) {
+    console.error('Update room error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Delete room (Admin only)
+app.delete('/api/rooms/:id', authenticateToken, requireAdmin, (req, res) => {
+  try {
+    const roomId = parseInt(req.params.id);
+    
+    if (roomId === 1) {
+      return res.status(400).json({ message: 'Cannot delete the default "Allgemein" room' });
+    }
+    
+    const room = rooms.find(r => r.id === roomId);
+    if (!room) {
+      return res.status(404).json({ message: 'Room not found' });
+    }
+    
+    // Check if room has items
+    const roomItems = items.filter(item => item.roomId === roomId);
+    if (roomItems.length > 0) {
+      return res.status(400).json({ 
+        message: `Cannot delete room with ${roomItems.length} items. Please move or delete items first.` 
+      });
+    }
+    
+    // Remove the room
+    const roomIndex = rooms.findIndex(r => r.id === roomId);
+    rooms.splice(roomIndex, 1);
+    
+    res.json({ message: 'Room deleted successfully' });
+  } catch (error) {
+    console.error('Delete room error:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 });
