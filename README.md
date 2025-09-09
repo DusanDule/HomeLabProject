@@ -1,10 +1,13 @@
-###### Admin Web App
+###### FixTrack System
 
-Eine einfache Web-Anwendung mit Login-Funktionalität, die als Docker Container deployt werden kann.
+Ein digitales Strichlisten-Management-System mit Admin- und User-Funktionalitäten, das als Docker Container deployt werden kann.
 
 ## Features
 
-- 🔐 Admin Login mit JWT-Authentifizierung
+- 🔐 Admin & User Login mit JWT-Authentifizierung
+- 📝 Digitale Strichlisten-Verwaltung
+- 🏠 Raum-basierte Organisation
+- 👥 Benutzer-Management
 - 🎨 Modernes, responsives Design
 - 🐳 Docker Container Support
 - ⚡ Express.js Backend

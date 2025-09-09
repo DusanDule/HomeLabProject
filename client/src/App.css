@@ -4,7 +4,7 @@
   align-items: center;
   justify-content: center;
   padding: 20px;
-  background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
+  background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
 }
 
 /* Login Styles */
@@ -105,34 +105,65 @@
 }
 
 .dashboard-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #2196f3 0%, #1976d2 100%);
   color: white;
   padding: 30px;
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
   align-items: center;
+  gap: 20px;
 }
 
 .header-actions {
   display: flex;
   gap: 15px;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  width: 100%;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.header-logo {
+  height: 50px;
+  width: auto;
+}
+
+.app-logo {
+  height: 60px;
+  width: auto;
+  margin-bottom: 20px;
+}
+
+.logo-container {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 10px;
 }
 
 .dashboard-header h1 {
   font-size: 28px;
   font-weight: 600;
+  margin: 0;
 }
 
 .logout-btn, .admin-btn, .change-password-btn, .items-btn, .rooms-btn {
   background: rgba(255, 255, 255, 0.2);
   color: white;
   border: 1px solid rgba(255, 255, 255, 0.3);
-  padding: 10px 20px;
-  border-radius: 6px;
+  padding: 12px 24px;
+  border-radius: 8px;
   cursor: pointer;
   font-weight: 500;
-  transition: background-color 0.3s ease;
+  font-size: 14px;
+  transition: all 0.3s ease;
+  min-width: 140px;
+  text-align: center;
 }
 
 .logout-btn:hover, .admin-btn:hover, .change-password-btn:hover, .items-btn:hover, .rooms-btn:hover {
@@ -150,13 +181,13 @@
 }
 
 .items-btn {
-  background: rgba(40, 167, 69, 0.3);
-  border-color: rgba(40, 167, 69, 0.5);
+  background: rgba(76, 175, 80, 0.3);
+  border-color: rgba(76, 175, 80, 0.5);
 }
 
 .rooms-btn {
-  background: rgba(111, 66, 193, 0.3);
-  border-color: rgba(111, 66, 193, 0.5);
+  background: rgba(33, 150, 243, 0.3);
+  border-color: rgba(33, 150, 243, 0.5);
 }
 
 .dashboard-content {
@@ -561,16 +592,20 @@
 
 .items-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 25px;
 }
 
 .item-card {
   background: white;
   border-radius: 12px;
-  padding: 20px;
+  padding: 25px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
 
 .item-card:hover {
@@ -971,6 +1006,85 @@
   background: #5a6268;
 }
 
+/* Room Tabs for Users */
+.room-tabs {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.room-tab {
+  background: #e9ecef;
+  color: #495057;
+  border: 1px solid #ced4da;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.room-tab:hover {
+  background: #dee2e6;
+  border-color: #adb5bd;
+}
+
+.room-tab.active {
+  background: #2196f3;
+  color: white;
+  border-color: #2196f3;
+}
+
+.room-tab.active:hover {
+  background: #1976d2;
+  border-color: #1976d2;
+}
+
+/* Enhanced Item Cards */
+
+.item-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 10px;
+}
+
+.item-actions button {
+  font-size: 11px;
+  padding: 5px 10px;
+  min-width: auto;
+}
+
+.stroke-count-display {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  align-items: center;
+  margin: 10px 0;
+}
+
+.stroke-count-badge {
+  background: linear-gradient(135deg, #2196f3 0%, #1976d2 100%);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-weight: 600;
+  font-size: 14px;
+  box-shadow: 0 2px 4px rgba(33, 150, 243, 0.3);
+  text-align: center;
+  min-width: 100px;
+}
+
+.last-stroke {
+  font-size: 12px;
+  color: #6c757d;
+  text-align: center;
+}
+
 .invitation-info {
   background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
   color: white;
@@ -1127,6 +1241,12 @@
 
   .items-grid {
     grid-template-columns: 1fr;
+    gap: 15px;
+  }
+
+  .item-card {
+    min-height: 180px;
+    padding: 20px;
   }
 
   .item-header {
@@ -1176,5 +1296,39 @@
 
   .edit-actions {
     flex-direction: column;
+  }
+
+  .room-tabs {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .room-tab {
+    width: 100%;
+    text-align: center;
+  }
+
+  .header-actions {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .logout-btn, .admin-btn, .change-password-btn, .items-btn, .rooms-btn {
+    min-width: 200px;
+    width: 100%;
+  }
+
+  .header-left {
+    flex-direction: column;
+    gap: 10px;
+    text-align: center;
+  }
+
+  .header-logo {
+    height: 40px;
+  }
+
+  .app-logo {
+    height: 50px;
   }
 }

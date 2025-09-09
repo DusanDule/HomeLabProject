@@ -26,6 +26,7 @@ function App() {
   const [itemAnalytics, setItemAnalytics] = useState({});
   const [rooms, setRooms] = useState([]);
   const [selectedRoom, setSelectedRoom] = useState('all');
+  const [activeRoomTab, setActiveRoomTab] = useState('all');
   const [showRoomManagement, setShowRoomManagement] = useState(false);
   const [newRoom, setNewRoom] = useState({ name: '', description: '' });
   const [showItemEdit, setShowItemEdit] = useState({});
@@ -236,6 +237,11 @@ function App() {
     fetchItems(roomId);
   };
 
+  const handleRoomTabChange = (roomId) => {
+    setActiveRoomTab(roomId);
+    fetchItems(roomId);
+  };
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -418,7 +424,10 @@ function App() {
       <div className="app">
         <div className="dashboard">
           <div className="dashboard-header">
-            <h1>{user?.role === 'admin' ? 'Admin Dashboard' : 'User Dashboard'}</h1>
+            <div className="header-left">
+              <img src="/assets/logo.svg" alt="FixTrack Logo" className="header-logo" />
+              <h1>{user?.role === 'admin' ? 'FixTrack Admin' : 'FixTrack User'}</h1>
+            </div>
             <div className="header-actions">
               <button 
                 onClick={() => setShowChangePassword(!showChangePassword)}
@@ -678,20 +687,40 @@ function App() {
                   <div className="items-header">
                     <h3>{user?.role === 'admin' ? 'Alle Items' : 'Verfügbare Items'}</h3>
                     <div className="items-controls">
-                      <div className="room-filter">
-                        <label htmlFor="room-filter">Raum filtern:</label>
-                        <select
-                          id="room-filter"
-                          value={selectedRoom}
-                          onChange={(e) => handleRoomFilter(e.target.value)}
-                        >
-                          <option value="all">Alle Räume</option>
+                      {user?.role === 'admin' ? (
+                        <div className="room-filter">
+                          <label htmlFor="room-filter">Raum filtern:</label>
+                          <select
+                            id="room-filter"
+                            value={selectedRoom}
+                            onChange={(e) => handleRoomFilter(e.target.value)}
+                          >
+                            <option value="all">Alle Räume</option>
+                            {rooms.map(room => (
+                              <option key={room.id} value={room.id}>{room.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      ) : (
+                        <div className="room-tabs">
+                          <button 
+                            className={`room-tab ${activeRoomTab === 'all' ? 'active' : ''}`}
+                            onClick={() => handleRoomTabChange('all')}
+                          >
+                            Alle Räume
+                          </button>
                           {rooms.map(room => (
-                            <option key={room.id} value={room.id}>{room.name}</option>
+                            <button 
+                              key={room.id}
+                              className={`room-tab ${activeRoomTab === room.id ? 'active' : ''}`}
+                              onClick={() => handleRoomTabChange(room.id)}
+                            >
+                              🏠 {room.name}
+                            </button>
                           ))}
-                        </select>
-                      </div>
-                      <button onClick={() => fetchItems(selectedRoom)} className="refresh-btn">
+                        </div>
+                      )}
+                      <button onClick={() => fetchItems(user?.role === 'admin' ? selectedRoom : activeRoomTab)} className="refresh-btn">
                         🔄 Aktualisieren
                       </button>
                     </div>
@@ -764,12 +793,16 @@ function App() {
                           
                           {user?.role === 'admin' && (
                             <div className="item-stats">
-                              <span className="stroke-count">Striche: {item.strokeCount || 0}</span>
-                              {item.lastStroke && (
-                                <span className="last-stroke">
-                                  Letzter: {new Date(item.lastStroke).toLocaleDateString('de-DE')}
+                              <div className="stroke-count-display">
+                                <span className="stroke-count-badge">
+                                  {item.strokeCount || 0} Striche
                                 </span>
-                              )}
+                                {item.lastStroke && (
+                                  <span className="last-stroke">
+                                    Letzter: {new Date(item.lastStroke).toLocaleDateString('de-DE')}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           )}
                           
@@ -1057,6 +1090,9 @@ function App() {
     <div className="app">
       <div className="login-container">
         <div className="login-card">
+          <div className="logo-container">
+            <img src="/assets/logo.svg" alt="FixTrack Logo" className="app-logo" />
+          </div>
           <h1>{showRegister ? 'Registrierung' : 'Login'}</h1>
           
           {showRegister ? (
