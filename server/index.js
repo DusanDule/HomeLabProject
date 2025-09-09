@@ -336,7 +336,7 @@ app.put('/api/users/:id/role', authenticateToken, requireAdmin, (req, res) => {
 // Create new item
 app.post('/api/items', authenticateToken, requireAdmin, (req, res) => {
   try {
-    const { name, description, roomId } = req.body;
+    const { name, description, roomId, price } = req.body;
     
     if (!name || name.trim().length === 0) {
       return res.status(400).json({ message: 'Item name is required' });
@@ -366,6 +366,7 @@ app.post('/api/items', authenticateToken, requireAdmin, (req, res) => {
       description: description ? description.trim() : '',
       roomId: parseInt(roomId),
       roomName: room.name,
+      price: price ? parseFloat(price) : 0,
       createdAt: new Date(),
       createdBy: req.user.id
     };
@@ -543,7 +544,7 @@ app.get('/api/items/:id/analytics', authenticateToken, requireAdmin, (req, res) 
 app.put('/api/items/:id', authenticateToken, requireAdmin, (req, res) => {
   try {
     const itemId = parseInt(req.params.id);
-    const { name, description, roomId } = req.body;
+    const { name, description, roomId, price } = req.body;
     
     const item = items.find(i => i.id === itemId);
     if (!item) {
@@ -574,6 +575,10 @@ app.put('/api/items/:id', authenticateToken, requireAdmin, (req, res) => {
       }
       item.roomId = parseInt(roomId);
       item.roomName = room.name;
+    }
+    
+    if (price !== undefined) {
+      item.price = price ? parseFloat(price) : 0;
     }
     
     res.json({

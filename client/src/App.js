@@ -21,7 +21,7 @@ function App() {
   const [showRoleChange, setShowRoleChange] = useState({});
   const [items, setItems] = useState([]);
   const [showItemManagement, setShowItemManagement] = useState(false);
-  const [newItem, setNewItem] = useState({ name: '', description: '', roomId: '' });
+  const [newItem, setNewItem] = useState({ name: '', description: '', roomId: '', price: '' });
   const [showItemAnalytics, setShowItemAnalytics] = useState({});
   const [itemAnalytics, setItemAnalytics] = useState({});
   const [rooms, setRooms] = useState([]);
@@ -31,6 +31,9 @@ function App() {
   const [newRoom, setNewRoom] = useState({ name: '', description: '' });
   const [showItemEdit, setShowItemEdit] = useState({});
   const [editItemData, setEditItemData] = useState({});
+  const [expandedItems, setExpandedItems] = useState({});
+  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'table'
+  const [showCreateItemForm, setShowCreateItemForm] = useState(false);
 
   useEffect(() => {
     // Check if user is already logged in
@@ -47,6 +50,15 @@ function App() {
       });
       setUser(response.data.user);
       setIsLoggedIn(true);
+      
+      // Auto-open Items for admin users
+      if (response.data.user.role === 'admin') {
+        fetchUsers();
+        fetchInvitationCode();
+        fetchItems();
+        fetchRooms();
+        setShowItemManagement(true);
+      }
     } catch (error) {
       localStorage.removeItem('token');
     }
@@ -112,7 +124,7 @@ function App() {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      setNewItem({ name: '', description: '', roomId: '' });
+      setNewItem({ name: '', description: '', roomId: '', price: '' });
       fetchItems(selectedRoom); // Refresh items list
       alert('Item erfolgreich erstellt!');
     } catch (error) {
@@ -435,18 +447,6 @@ function App() {
                   setShowItemManagement(false);
                   setShowRoomManagement(false);
                   setShowAdminMenu(false);
-                  setShowChangePassword(false);
-                }}
-                className={`dashboard-btn ${!showItemManagement && !showRoomManagement && !showAdminMenu && !showChangePassword ? 'active' : ''}`}
-              >
-                🏠 Dashboard
-              </button>
-              <button 
-                onClick={() => {
-                  // Reset all other screens
-                  setShowItemManagement(false);
-                  setShowRoomManagement(false);
-                  setShowAdminMenu(false);
                   setShowChangePassword(!showChangePassword);
                 }}
                 className={`change-password-btn ${showChangePassword ? 'active' : ''}`}
@@ -484,7 +484,7 @@ function App() {
                     }} 
                     className={`rooms-btn ${showRoomManagement ? 'active' : ''}`}
                   >
-                    🏠 Räume
+                    📂 Kategorien
                   </button>
                   <button 
                     onClick={() => {
@@ -591,13 +591,13 @@ function App() {
             )}
             {showRoomManagement && user?.role === 'admin' ? (
               <div className="room-management">
-                <h2>🏠 Raum Management</h2>
+                <h2>📂 Kategorie Management</h2>
                 
                 <div className="create-room-section">
-                  <h3>Neuen Raum erstellen</h3>
+                  <h3>Neue Kategorie erstellen</h3>
                   <form onSubmit={handleCreateRoom} className="create-room-form">
                     <div className="form-group">
-                      <label htmlFor="room-name">Raum Name:</label>
+                      <label htmlFor="room-name">Kategorie Name:</label>
                       <input
                         type="text"
                         id="room-name"
@@ -614,7 +614,7 @@ function App() {
                         id="room-description"
                         value={newRoom.description}
                         onChange={(e) => setNewRoom({ ...newRoom, description: e.target.value })}
-                        placeholder="Kurze Beschreibung des Raums..."
+                        placeholder="Kurze Beschreibung der Kategorie..."
                       />
                     </div>
                     {error && <div className="error-message">{error}</div>}
@@ -623,13 +623,13 @@ function App() {
                       className="login-btn"
                       disabled={loading}
                     >
-                      {loading ? 'Erstellen...' : 'Raum erstellen'}
+                        {loading ? 'Erstellen...' : 'Kategorie erstellen'}
                     </button>
                   </form>
                 </div>
 
                 <div className="rooms-list">
-                  <h3>Alle Räume</h3>
+                  <h3>Alle Kategorien</h3>
                   <div className="rooms-grid">
                     {rooms.map(room => (
                       <div key={room.id} className="room-card">
@@ -666,8 +666,18 @@ function App() {
                 
                 {user?.role === 'admin' && (
                   <div className="create-item-section">
-                    <h3>Neues Item erstellen</h3>
-                    <form onSubmit={handleCreateItem} className="create-item-form">
+                    <div className="create-item-header">
+                      <h3>Neues Item erstellen</h3>
+                      <button 
+                        type="button"
+                        className="toggle-create-form-btn"
+                        onClick={() => setShowCreateItemForm(!showCreateItemForm)}
+                      >
+                        {showCreateItemForm ? '−' : '+'}
+                      </button>
+                    </div>
+                    {showCreateItemForm && (
+                      <form onSubmit={handleCreateItem} className="create-item-form">
                       <div className="form-group">
                         <label htmlFor="item-name">Item Name:</label>
                         <input
@@ -703,6 +713,18 @@ function App() {
                           placeholder="Kurze Beschreibung..."
                         />
                       </div>
+                      <div className="form-group">
+                        <label htmlFor="item-price">Preis (€):</label>
+                        <input
+                          type="number"
+                          id="item-price"
+                          value={newItem.price}
+                          onChange={(e) => setNewItem({ ...newItem, price: e.target.value })}
+                          placeholder="0.00"
+                          step="0.01"
+                          min="0"
+                        />
+                      </div>
                       {error && <div className="error-message">{error}</div>}
                       <button 
                         type="submit" 
@@ -712,56 +734,222 @@ function App() {
                         {loading ? 'Erstellen...' : 'Item erstellen'}
                       </button>
                     </form>
+                    )}
                   </div>
                 )}
 
-                <div className="items-list">
-                  <div className="items-header">
-                    <h3>{user?.role === 'admin' ? 'Alle Items' : 'Verfügbare Items'}</h3>
-                    <div className="items-controls">
-                      {user?.role === 'admin' ? (
-                        <div className="room-filter">
-                          <label htmlFor="room-filter">Raum filtern:</label>
-                          <select
-                            id="room-filter"
-                            value={selectedRoom}
-                            onChange={(e) => handleRoomFilter(e.target.value)}
-                          >
-                            <option value="all">Alle Räume</option>
-                            {rooms.map(room => (
-                              <option key={room.id} value={room.id}>{room.name}</option>
-                            ))}
-                          </select>
-                        </div>
-                      ) : (
-                        <div className="room-tabs">
-                          <button 
-                            className={`room-tab ${activeRoomTab === 'all' ? 'active' : ''}`}
-                            onClick={() => handleRoomTabChange('all')}
-                          >
-                            Alle Räume
-                          </button>
-                          {rooms.map(room => (
+                  <div className="items-list">
+                    <div className="items-header">
+                      <h3>{user?.role === 'admin' ? 'Alle Items' : 'Verfügbare Items'}</h3>
+                      <div className="items-controls">
+                        {user?.role === 'admin' && (
+                          <div className="view-mode-toggle">
                             <button 
-                              key={room.id}
-                              className={`room-tab ${activeRoomTab === room.id ? 'active' : ''}`}
-                              onClick={() => handleRoomTabChange(room.id)}
+                              className={`view-btn ${viewMode === 'grid' ? 'active' : ''}`}
+                              onClick={() => setViewMode('grid')}
                             >
-                              🏠 {room.name}
+                              📋 Grid
                             </button>
-                          ))}
-                        </div>
-                      )}
-                      <button onClick={() => fetchItems(user?.role === 'admin' ? selectedRoom : activeRoomTab)} className="refresh-btn">
-                        🔄 Aktualisieren
-                      </button>
+                            <button 
+                              className={`view-btn ${viewMode === 'table' ? 'active' : ''}`}
+                              onClick={() => setViewMode('table')}
+                            >
+                              📊 Tabelle
+                            </button>
+                          </div>
+                        )}
+                        {user?.role === 'admin' ? (
+                          <div className="room-filter">
+                            <label htmlFor="room-filter">Kategorie filtern:</label>
+                            <select
+                              id="room-filter"
+                              value={selectedRoom}
+                              onChange={(e) => handleRoomFilter(e.target.value)}
+                            >
+                              <option value="all">Alle Kategorien</option>
+                              {rooms.map(room => (
+                                <option key={room.id} value={room.id}>{room.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                        ) : (
+                          <div className="room-tabs">
+                            <button 
+                              className={`room-tab ${activeRoomTab === 'all' ? 'active' : ''}`}
+                              onClick={() => handleRoomTabChange('all')}
+                            >
+                              Alle Kategorien
+                            </button>
+                            {rooms.map(room => (
+                              <button 
+                                key={room.id}
+                                className={`room-tab ${activeRoomTab === room.id ? 'active' : ''}`}
+                                onClick={() => handleRoomTabChange(room.id)}
+                              >
+                                📂 {room.name}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        <button onClick={() => fetchItems(user?.role === 'admin' ? selectedRoom : activeRoomTab)} className="refresh-btn">
+                          🔄 Aktualisieren
+                        </button>
+                      </div>
                     </div>
-                  </div>
                   
                   {items.length === 0 ? (
                     <div className="no-items">
                       <p>Noch keine Items vorhanden.</p>
                       {user?.role === 'admin' && <p>Erstelle dein erstes Item oben!</p>}
+                    </div>
+                  ) : viewMode === 'table' && user?.role === 'admin' ? (
+                    <div className="items-table-container">
+                      <table className="items-table">
+                        <thead>
+                          <tr>
+                            <th>Name</th>
+                            <th>Kategorie</th>
+                            <th>Preis</th>
+                            <th>Striche</th>
+                            <th>Details</th>
+                            <th>Aktionen</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {items.map(item => (
+                            <tr key={item.id} className="item-row">
+                              <td className="item-name-cell">
+                                <strong>{item.name}</strong>
+                                {item.description && (
+                                  <div className="item-description-small">{item.description}</div>
+                                )}
+                              </td>
+                              <td className="item-category-cell">
+                                📂 {item.roomName}
+                              </td>
+                              <td className="item-price-cell">
+                                {item.price ? `€${parseFloat(item.price).toFixed(2)}` : '€0.00'}
+                              </td>
+                              <td className="item-strokes-cell">
+                                <span className="stroke-count-badge">
+                                  {item.strokeCount || 0}
+                                </span>
+                              </td>
+                              <td className="item-details-cell">
+                                <button 
+                                  className="details-btn"
+                                  onClick={() => {
+                                    setExpandedItems({ 
+                                      ...expandedItems, 
+                                      [item.id]: !expandedItems[item.id] 
+                                    });
+                                    if (!expandedItems[item.id]) {
+                                      fetchItemAnalytics(item.id);
+                                    }
+                                  }}
+                                >
+                                  {expandedItems[item.id] ? '🔼' : '🔽'} Details
+                                </button>
+                              </td>
+                              <td className="item-actions-cell">
+                                <div className="table-actions">
+                                  <button 
+                                    onClick={() => {
+                                      setShowItemEdit({ ...showItemEdit, [item.id]: !showItemEdit[item.id] });
+                                      if (!showItemEdit[item.id]) {
+                                        setEditItemData({ 
+                                          ...editItemData, 
+                                          [item.id]: { 
+                                            name: item.name, 
+                                            description: item.description, 
+                                            roomId: item.roomId,
+                                            price: item.price
+                                          } 
+                                        });
+                                      }
+                                    }}
+                                    className="edit-item-btn-small"
+                                    title="Bearbeiten"
+                                  >
+                                    ✏️
+                                  </button>
+                                  <button 
+                                    onClick={() => handleResetStrokes(item.id, item.name)}
+                                    className="reset-strokes-btn-small"
+                                    title="Striche zurücksetzen"
+                                  >
+                                    🔄
+                                  </button>
+                                  <button 
+                                    onClick={() => handleDeleteItem(item.id)}
+                                    className="delete-item-btn-small"
+                                    title="Löschen"
+                                  >
+                                    🗑️
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      
+                      {/* Details Dropdowns */}
+                      {items.map(item => (
+                        expandedItems[item.id] && itemAnalytics[item.id] && (
+                          <div key={`details-${item.id}`} className="item-details-dropdown">
+                            <h4>📊 Details für {item.name}</h4>
+                            <div className="analytics-content">
+                              <div className="analytics-summary">
+                                <p><strong>Gesamte Striche:</strong> {itemAnalytics[item.id].totalStrokes}</p>
+                              </div>
+                              
+                              {itemAnalytics[item.id].strokesByUser && itemAnalytics[item.id].strokesByUser.length > 0 && (
+                                <div className="strokes-by-user">
+                                  <h5>Striche pro Benutzer:</h5>
+                                  {itemAnalytics[item.id].strokesByUser.map((userStroke, index) => (
+                                    <div key={index} className="user-stroke-item">
+                                      <div className="user-stroke-header">
+                                        <span className="user-name">{userStroke.username}</span>
+                                        <span className="user-stroke-count">{userStroke.count} Striche</span>
+                                        <button 
+                                          className="user-details-toggle"
+                                          onClick={() => setExpandedItems({ 
+                                            ...expandedItems, 
+                                            [`${item.id}-${userStroke.username}`]: !expandedItems[`${item.id}-${userStroke.username}`] 
+                                          })}
+                                        >
+                                          {expandedItems[`${item.id}-${userStroke.username}`] ? '🔼' : '🔽'}
+                                        </button>
+                                      </div>
+                                      
+                                      {expandedItems[`${item.id}-${userStroke.username}`] && (
+                                        <div className="user-stroke-details">
+                                          <p><strong>Letzter Strich:</strong> {new Date(userStroke.lastStroke).toLocaleDateString('de-DE')} {new Date(userStroke.lastStroke).toLocaleTimeString('de-DE')}</p>
+                                          {itemAnalytics[item.id].recentStrokes && (
+                                            <div className="user-recent-strokes">
+                                              <h6>Letzte Striche von {userStroke.username}:</h6>
+                                              {itemAnalytics[item.id].recentStrokes
+                                                .filter(stroke => stroke.username === userStroke.username)
+                                                .slice(0, 5)
+                                                .map((stroke, strokeIndex) => (
+                                                  <div key={strokeIndex} className="recent-stroke-item">
+                                                    <span>{new Date(stroke.createdAt).toLocaleDateString('de-DE')}</span>
+                                                    <span>{new Date(stroke.createdAt).toLocaleTimeString('de-DE')}</span>
+                                                  </div>
+                                                ))}
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      ))}
                     </div>
                   ) : (
                     <div className="items-grid">
@@ -770,7 +958,10 @@ function App() {
                           <div className="item-header">
                             <div className="item-title">
                               <h4>{item.name}</h4>
-                              <span className="item-room">🏠 {item.roomName}</span>
+                              <span className="item-room">📂 {item.roomName}</span>
+                              {item.price && (
+                                <span className="item-price">€{parseFloat(item.price).toFixed(2)}</span>
+                              )}
                             </div>
                             {user?.role === 'admin' && (
                               <div className="item-actions">
@@ -778,14 +969,15 @@ function App() {
                                   onClick={() => {
                                     setShowItemEdit({ ...showItemEdit, [item.id]: !showItemEdit[item.id] });
                                     if (!showItemEdit[item.id]) {
-                                      setEditItemData({ 
-                                        ...editItemData, 
-                                        [item.id]: { 
-                                          name: item.name, 
-                                          description: item.description, 
-                                          roomId: item.roomId 
-                                        } 
-                                      });
+                                        setEditItemData({ 
+                                          ...editItemData, 
+                                          [item.id]: { 
+                                            name: item.name, 
+                                            description: item.description, 
+                                            roomId: item.roomId,
+                                            price: item.price
+                                          } 
+                                        });
                                     }
                                   }}
                                   className="edit-item-btn"
@@ -889,6 +1081,21 @@ function App() {
                                     } 
                                   })}
                                   className="edit-input"
+                                />
+                                <input
+                                  type="number"
+                                  placeholder="Neuer Preis (€)"
+                                  value={editItemData[item.id]?.price || ''}
+                                  onChange={(e) => setEditItemData({ 
+                                    ...editItemData, 
+                                    [item.id]: { 
+                                      ...editItemData[item.id], 
+                                      price: e.target.value 
+                                    } 
+                                  })}
+                                  className="edit-input"
+                                  step="0.01"
+                                  min="0"
                                 />
                                 <div className="edit-actions">
                                   <button 
