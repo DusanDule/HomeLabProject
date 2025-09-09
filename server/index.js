@@ -242,6 +242,79 @@ app.put('/api/users/:id/reset-password', authenticateToken, requireAdmin, (req, 
   }
 });
 
+// Change own password (any logged-in user)
+app.put('/api/change-password', authenticateToken, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'Current password and new password are required' });
+    }
+    
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: 'New password must be at least 6 characters long' });
+    }
+    
+    const user = users.find(u => u.id === req.user.id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    // Verify current password
+    const isValidPassword = await bcrypt.compare(currentPassword, user.password);
+    if (!isValidPassword) {
+      return res.status(400).json({ message: 'Current password is incorrect' });
+    }
+    
+    // Update password
+    user.password = bcrypt.hashSync(newPassword, 10);
+    
+    res.json({ 
+      message: 'Password changed successfully',
+      user: { id: user.id, username: user.username, email: user.email }
+    });
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Update user role (admin only)
+app.put('/api/users/:id/role', authenticateToken, requireAdmin, (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    const { newRole } = req.body;
+    
+    if (!newRole || !['admin', 'user'].includes(newRole)) {
+      return res.status(400).json({ message: 'Valid role (admin or user) is required' });
+    }
+    
+    const user = users.find(u => u.id === userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    // Prevent demoting the last admin
+    if (user.role === 'admin' && newRole === 'user') {
+      const adminCount = users.filter(u => u.role === 'admin').length;
+      if (adminCount <= 1) {
+        return res.status(400).json({ message: 'Cannot demote the last admin user' });
+      }
+    }
+    
+    // Update role
+    user.role = newRole;
+    
+    res.json({ 
+      message: 'User role updated successfully',
+      user: { id: user.id, username: user.username, email: user.email, role: user.role }
+    });
+  } catch (error) {
+    console.error('Update role error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
 app.get('/api/health', (req, res) => {
   res.json({ message: 'Server is running' });
 });

@@ -97,7 +97,7 @@
 /* Dashboard Styles */
 .dashboard {
   width: 100%;
-  max-width: 800px;
+  max-width: 1200px;
   background: white;
   border-radius: 12px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
@@ -124,7 +124,7 @@
   font-weight: 600;
 }
 
-.logout-btn, .admin-btn {
+.logout-btn, .admin-btn, .change-password-btn {
   background: rgba(255, 255, 255, 0.2);
   color: white;
   border: 1px solid rgba(255, 255, 255, 0.3);
@@ -135,13 +135,18 @@
   transition: background-color 0.3s ease;
 }
 
-.logout-btn:hover, .admin-btn:hover {
+.logout-btn:hover, .admin-btn:hover, .change-password-btn:hover {
   background: rgba(255, 255, 255, 0.3);
 }
 
 .admin-btn {
   background: rgba(255, 255, 255, 0.15);
   border-color: rgba(255, 255, 255, 0.4);
+}
+
+.change-password-btn {
+  background: rgba(255, 193, 7, 0.3);
+  border-color: rgba(255, 193, 7, 0.5);
 }
 
 .dashboard-content {
@@ -303,6 +308,21 @@
   background: #e0a800;
 }
 
+.role-change-btn {
+  background: #6f42c1;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background-color 0.3s ease;
+}
+
+.role-change-btn:hover {
+  background: #5a32a3;
+}
+
 .password-reset-section {
   background: #fff3cd;
   border: 1px solid #ffeaa7;
@@ -359,6 +379,118 @@
 }
 
 .cancel-reset-btn:hover {
+  background: #5a6268;
+}
+
+/* Change Password Section */
+.change-password-section {
+  background: #f8f9fa;
+  border-radius: 12px;
+  padding: 30px;
+  margin-bottom: 30px;
+  text-align: left;
+}
+
+.change-password-section h2 {
+  color: #333;
+  margin-bottom: 25px;
+  text-align: center;
+}
+
+.change-password-form {
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.form-actions {
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+/* Role Change Section */
+.role-change-section {
+  background: #e7f3ff;
+  border: 1px solid #b3d9ff;
+  border-radius: 8px;
+  padding: 20px;
+  margin-top: 15px;
+}
+
+.role-change-form h4 {
+  margin-bottom: 15px;
+  color: #0066cc;
+}
+
+.role-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.current-role {
+  font-size: 14px;
+  color: #495057;
+  margin-bottom: 10px;
+}
+
+.role-buttons {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.role-btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.role-btn.admin {
+  background: #ffc107;
+  color: #212529;
+}
+
+.role-btn.admin:hover:not(:disabled) {
+  background: #e0a800;
+}
+
+.role-btn.user {
+  background: #17a2b8;
+  color: white;
+}
+
+.role-btn.user:hover:not(:disabled) {
+  background: #138496;
+}
+
+.role-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.role-btn.active {
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.5);
+}
+
+.cancel-role-btn {
+  background: #6c757d;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.3s ease;
+  align-self: flex-start;
+}
+
+.cancel-role-btn:hover {
   background: #5a6268;
 }
 
@@ -481,6 +613,16 @@
   .action-buttons {
     flex-direction: column;
     gap: 5px;
+  }
+
+  .form-actions {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .role-buttons {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .reset-form-group {
