@@ -25,6 +25,12 @@ const users = [
 // Configurable invitation code (starts with default)
 let INVITATION_CODE = 'Dule-1212';
 
+// In-memory items storage (in production, use a database)
+const items = [];
+
+// In-memory strokes storage (in production, use a database)
+const strokes = [];
+
 // Middleware to verify JWT token
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
@@ -311,6 +317,192 @@ app.put('/api/users/:id/role', authenticateToken, requireAdmin, (req, res) => {
     });
   } catch (error) {
     console.error('Update role error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Item Management Endpoints (Admin only)
+// Create new item
+app.post('/api/items', authenticateToken, requireAdmin, (req, res) => {
+  try {
+    const { name, description } = req.body;
+    
+    if (!name || name.trim().length === 0) {
+      return res.status(400).json({ message: 'Item name is required' });
+    }
+    
+    // Check if item already exists
+    const existingItem = items.find(item => item.name.toLowerCase() === name.toLowerCase());
+    if (existingItem) {
+      return res.status(400).json({ message: 'Item with this name already exists' });
+    }
+    
+    const newItem = {
+      id: items.length + 1,
+      name: name.trim(),
+      description: description ? description.trim() : '',
+      createdAt: new Date(),
+      createdBy: req.user.id
+    };
+    
+    items.push(newItem);
+    
+    res.json({
+      message: 'Item created successfully',
+      item: newItem
+    });
+  } catch (error) {
+    console.error('Create item error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Get all items (Admin sees all, Users see only names)
+app.get('/api/items', authenticateToken, (req, res) => {
+  try {
+    const user = users.find(u => u.id === req.user.id);
+    
+    if (user.role === 'admin') {
+      // Admin sees all items with stroke counts
+      const itemsWithStrokes = items.map(item => {
+        const itemStrokes = strokes.filter(stroke => stroke.itemId === item.id);
+        return {
+          ...item,
+          strokeCount: itemStrokes.length,
+          lastStroke: itemStrokes.length > 0 ? itemStrokes[itemStrokes.length - 1].createdAt : null
+        };
+      });
+      res.json({ items: itemsWithStrokes });
+    } else {
+      // Users see only item names and IDs
+      const userItems = items.map(item => ({
+        id: item.id,
+        name: item.name,
+        description: item.description
+      }));
+      res.json({ items: userItems });
+    }
+  } catch (error) {
+    console.error('Get items error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Delete item (Admin only)
+app.delete('/api/items/:id', authenticateToken, requireAdmin, (req, res) => {
+  try {
+    const itemId = parseInt(req.params.id);
+    
+    const itemIndex = items.findIndex(item => item.id === itemId);
+    if (itemIndex === -1) {
+      return res.status(404).json({ message: 'Item not found' });
+    }
+    
+    // Remove all strokes for this item
+    const strokeIndices = [];
+    strokes.forEach((stroke, index) => {
+      if (stroke.itemId === itemId) {
+        strokeIndices.push(index);
+      }
+    });
+    
+    // Remove strokes in reverse order to maintain indices
+    strokeIndices.reverse().forEach(index => {
+      strokes.splice(index, 1);
+    });
+    
+    // Remove the item
+    items.splice(itemIndex, 1);
+    
+    res.json({ message: 'Item and all associated strokes deleted successfully' });
+  } catch (error) {
+    console.error('Delete item error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Add stroke to item (Any logged-in user)
+app.post('/api/items/:id/stroke', authenticateToken, (req, res) => {
+  try {
+    const itemId = parseInt(req.params.id);
+    
+    // Check if item exists
+    const item = items.find(i => i.id === itemId);
+    if (!item) {
+      return res.status(404).json({ message: 'Item not found' });
+    }
+    
+    const newStroke = {
+      id: strokes.length + 1,
+      itemId: itemId,
+      userId: req.user.id,
+      username: req.user.username,
+      createdAt: new Date()
+    };
+    
+    strokes.push(newStroke);
+    
+    res.json({
+      message: 'Stroke added successfully',
+      stroke: {
+        id: newStroke.id,
+        itemName: item.name,
+        createdAt: newStroke.createdAt
+      }
+    });
+  } catch (error) {
+    console.error('Add stroke error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Get item analytics (Admin only)
+app.get('/api/items/:id/analytics', authenticateToken, requireAdmin, (req, res) => {
+  try {
+    const itemId = parseInt(req.params.id);
+    
+    const item = items.find(i => i.id === itemId);
+    if (!item) {
+      return res.status(404).json({ message: 'Item not found' });
+    }
+    
+    const itemStrokes = strokes.filter(stroke => stroke.itemId === itemId);
+    
+    // Group strokes by user
+    const strokesByUser = {};
+    itemStrokes.forEach(stroke => {
+      if (!strokesByUser[stroke.username]) {
+        strokesByUser[stroke.username] = [];
+      }
+      strokesByUser[stroke.username].push(stroke);
+    });
+    
+    // Create analytics data
+    const analytics = {
+      item: {
+        id: item.id,
+        name: item.name,
+        description: item.description
+      },
+      totalStrokes: itemStrokes.length,
+      strokesByUser: Object.keys(strokesByUser).map(username => ({
+        username,
+        strokeCount: strokesByUser[username].length,
+        lastStroke: strokesByUser[username][strokesByUser[username].length - 1].createdAt
+      })),
+      recentStrokes: itemStrokes
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+        .slice(0, 10)
+        .map(stroke => ({
+          id: stroke.id,
+          username: stroke.username,
+          createdAt: stroke.createdAt
+        }))
+    };
+    
+    res.json(analytics);
+  } catch (error) {
+    console.error('Get item analytics error:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 });

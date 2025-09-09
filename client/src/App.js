@@ -19,6 +19,11 @@ function App() {
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [changePasswordData, setChangePasswordData] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [showRoleChange, setShowRoleChange] = useState({});
+  const [items, setItems] = useState([]);
+  const [showItemManagement, setShowItemManagement] = useState(false);
+  const [newItem, setNewItem] = useState({ name: '', description: '' });
+  const [showItemAnalytics, setShowItemAnalytics] = useState({});
+  const [itemAnalytics, setItemAnalytics] = useState({});
 
   useEffect(() => {
     // Check if user is already logged in
@@ -61,6 +66,86 @@ function App() {
       setCurrentInvitationCode(response.data.invitationCode);
     } catch (error) {
       console.error('Error fetching invitation code:', error);
+    }
+  };
+
+  const fetchItems = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get('/api/items', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setItems(response.data.items);
+    } catch (error) {
+      console.error('Error fetching items:', error);
+    }
+  };
+
+  const handleCreateItem = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post('/api/items', newItem, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      setNewItem({ name: '', description: '' });
+      fetchItems(); // Refresh items list
+      alert('Item erfolgreich erstellt!');
+    } catch (error) {
+      setError(error.response?.data?.message || 'Fehler beim Erstellen des Items');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteItem = async (itemId) => {
+    if (!window.confirm('Bist du sicher, dass du dieses Item und alle zugehörigen Striche löschen möchtest?')) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete(`/api/items/${itemId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      fetchItems(); // Refresh items list
+      alert('Item erfolgreich gelöscht!');
+    } catch (error) {
+      setError(error.response?.data?.message || 'Fehler beim Löschen des Items');
+    }
+  };
+
+  const handleAddStroke = async (itemId, itemName) => {
+    if (!window.confirm(`Möchtest du einen Strich für "${itemName}" hinzufügen?`)) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.post(`/api/items/${itemId}/stroke`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      alert(`✅ Strich für "${itemName}" erfolgreich hinzugefügt!`);
+      fetchItems(); // Refresh items list to update stroke counts
+    } catch (error) {
+      setError(error.response?.data?.message || 'Fehler beim Hinzufügen des Strichs');
+    }
+  };
+
+  const fetchItemAnalytics = async (itemId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`/api/items/${itemId}/analytics`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setItemAnalytics({ ...itemAnalytics, [itemId]: response.data });
+    } catch (error) {
+      console.error('Error fetching item analytics:', error);
     }
   };
 
@@ -255,17 +340,43 @@ function App() {
                 🔑 Passwort ändern
               </button>
               {user?.role === 'admin' && (
+                <>
+                  <button 
+                    onClick={() => {
+                      setShowItemManagement(!showItemManagement);
+                      if (!showItemManagement) {
+                        fetchItems();
+                      }
+                    }} 
+                    className="items-btn"
+                  >
+                    {showItemManagement ? 'Dashboard' : '📝 Items'}
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setShowAdminMenu(!showAdminMenu);
+                      if (!showAdminMenu) {
+                        fetchUsers();
+                        fetchInvitationCode();
+                      }
+                    }} 
+                    className="admin-btn"
+                  >
+                    {showAdminMenu ? 'Dashboard' : '👥 User Management'}
+                  </button>
+                </>
+              )}
+              {user?.role === 'user' && (
                 <button 
                   onClick={() => {
-                    setShowAdminMenu(!showAdminMenu);
-                    if (!showAdminMenu) {
-                      fetchUsers();
-                      fetchInvitationCode();
+                    setShowItemManagement(!showItemManagement);
+                    if (!showItemManagement) {
+                      fetchItems();
                     }
                   }} 
-                  className="admin-btn"
+                  className="items-btn"
                 >
-                  {showAdminMenu ? 'Dashboard' : 'User Management'}
+                  {showItemManagement ? 'Dashboard' : '📝 Strichliste'}
                 </button>
               )}
               <button onClick={handleLogout} className="logout-btn">
@@ -337,7 +448,147 @@ function App() {
                 </form>
               </div>
             )}
-            {showAdminMenu && user?.role === 'admin' ? (
+            {showItemManagement ? (
+              <div className="item-management">
+                <h2>📝 {user?.role === 'admin' ? 'Item Management' : 'Strichliste'}</h2>
+                
+                {user?.role === 'admin' && (
+                  <div className="create-item-section">
+                    <h3>Neues Item erstellen</h3>
+                    <form onSubmit={handleCreateItem} className="create-item-form">
+                      <div className="form-group">
+                        <label htmlFor="item-name">Item Name:</label>
+                        <input
+                          type="text"
+                          id="item-name"
+                          value={newItem.name}
+                          onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
+                          required
+                          placeholder="z.B. Handschuhe, Coca Cola..."
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label htmlFor="item-description">Beschreibung (optional):</label>
+                        <input
+                          type="text"
+                          id="item-description"
+                          value={newItem.description}
+                          onChange={(e) => setNewItem({ ...newItem, description: e.target.value })}
+                          placeholder="Kurze Beschreibung..."
+                        />
+                      </div>
+                      {error && <div className="error-message">{error}</div>}
+                      <button 
+                        type="submit" 
+                        className="login-btn"
+                        disabled={loading}
+                      >
+                        {loading ? 'Erstellen...' : 'Item erstellen'}
+                      </button>
+                    </form>
+                  </div>
+                )}
+
+                <div className="items-list">
+                  <div className="items-header">
+                    <h3>{user?.role === 'admin' ? 'Alle Items' : 'Verfügbare Items'}</h3>
+                    <button onClick={fetchItems} className="refresh-btn">
+                      🔄 Aktualisieren
+                    </button>
+                  </div>
+                  
+                  {items.length === 0 ? (
+                    <div className="no-items">
+                      <p>Noch keine Items vorhanden.</p>
+                      {user?.role === 'admin' && <p>Erstelle dein erstes Item oben!</p>}
+                    </div>
+                  ) : (
+                    <div className="items-grid">
+                      {items.map(item => (
+                        <div key={item.id} className="item-card">
+                          <div className="item-header">
+                            <h4>{item.name}</h4>
+                            {user?.role === 'admin' && (
+                              <div className="item-actions">
+                                <button 
+                                  onClick={() => {
+                                    setShowItemAnalytics({ ...showItemAnalytics, [item.id]: !showItemAnalytics[item.id] });
+                                    if (!showItemAnalytics[item.id]) {
+                                      fetchItemAnalytics(item.id);
+                                    }
+                                  }}
+                                  className="analytics-btn"
+                                >
+                                  📊 Analytics
+                                </button>
+                                <button 
+                                  onClick={() => handleDeleteItem(item.id)}
+                                  className="delete-item-btn"
+                                >
+                                  🗑️
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                          
+                          {item.description && (
+                            <p className="item-description">{item.description}</p>
+                          )}
+                          
+                          {user?.role === 'admin' && (
+                            <div className="item-stats">
+                              <span className="stroke-count">Striche: {item.strokeCount || 0}</span>
+                              {item.lastStroke && (
+                                <span className="last-stroke">
+                                  Letzter: {new Date(item.lastStroke).toLocaleDateString('de-DE')}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          
+                          <button 
+                            onClick={() => handleAddStroke(item.id, item.name)}
+                            className="add-stroke-btn"
+                          >
+                            ➕ Strich hinzufügen
+                          </button>
+                          
+                          {showItemAnalytics[item.id] && itemAnalytics[item.id] && (
+                            <div className="item-analytics">
+                              <h5>📊 Analytics für {item.name}</h5>
+                              <div className="analytics-content">
+                                <div className="analytics-summary">
+                                  <p><strong>Gesamt Striche:</strong> {itemAnalytics[item.id].totalStrokes}</p>
+                                </div>
+                                
+                                <div className="strokes-by-user">
+                                  <h6>Striche pro User:</h6>
+                                  {itemAnalytics[item.id].strokesByUser.map(user => (
+                                    <div key={user.username} className="user-stroke">
+                                      <span>{user.username}: {user.strokeCount}</span>
+                                      <small>(letzter: {new Date(user.lastStroke).toLocaleDateString('de-DE')})</small>
+                                    </div>
+                                  ))}
+                                </div>
+                                
+                                <div className="recent-strokes">
+                                  <h6>Letzte 10 Striche:</h6>
+                                  {itemAnalytics[item.id].recentStrokes.map(stroke => (
+                                    <div key={stroke.id} className="recent-stroke">
+                                      {stroke.username} - {new Date(stroke.createdAt).toLocaleString('de-DE')}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : showAdminMenu && user?.role === 'admin' ? (
               <div className="admin-menu">
                 <h2>👥 User Management</h2>
                 <div className="user-list">
