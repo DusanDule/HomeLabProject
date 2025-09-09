@@ -4,6 +4,7 @@
   align-items: center;
   justify-content: center;
   padding: 20px;
+  background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
 }
 
 /* Login Styles */
@@ -112,12 +113,18 @@
   align-items: center;
 }
 
+.header-actions {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+}
+
 .dashboard-header h1 {
   font-size: 28px;
   font-weight: 600;
 }
 
-.logout-btn {
+.logout-btn, .admin-btn {
   background: rgba(255, 255, 255, 0.2);
   color: white;
   border: 1px solid rgba(255, 255, 255, 0.3);
@@ -128,8 +135,13 @@
   transition: background-color 0.3s ease;
 }
 
-.logout-btn:hover {
+.logout-btn:hover, .admin-btn:hover {
   background: rgba(255, 255, 255, 0.3);
+}
+
+.admin-btn {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.4);
 }
 
 .dashboard-content {
@@ -157,6 +169,164 @@
   opacity: 0.9;
 }
 
+/* Admin Menu Styles */
+.admin-menu {
+  text-align: left;
+  max-width: 100%;
+}
+
+.admin-menu h2 {
+  color: #333;
+  margin-bottom: 30px;
+  font-size: 24px;
+  text-align: center;
+}
+
+.user-list {
+  background: #f8f9fa;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 30px;
+}
+
+.user-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.user-list-header h3 {
+  color: #333;
+  margin: 0;
+}
+
+.refresh-btn {
+  background: #28a745;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.3s ease;
+}
+
+.refresh-btn:hover {
+  background: #218838;
+}
+
+.users-table {
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.table-header {
+  display: grid;
+  grid-template-columns: 60px 1fr 120px 120px 100px;
+  background: #e9ecef;
+  font-weight: 600;
+  color: #495057;
+  padding: 15px;
+  border-bottom: 2px solid #dee2e6;
+}
+
+.table-row {
+  display: grid;
+  grid-template-columns: 60px 1fr 120px 120px 100px;
+  padding: 15px;
+  border-bottom: 1px solid #dee2e6;
+  align-items: center;
+}
+
+.table-row:last-child {
+  border-bottom: none;
+}
+
+.table-row:hover {
+  background: #f8f9fa;
+}
+
+.role-badge {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.role-badge.admin {
+  background: #ffc107;
+  color: #856404;
+}
+
+.role-badge.user {
+  background: #17a2b8;
+  color: white;
+}
+
+.delete-btn {
+  background: #dc3545;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background-color 0.3s ease;
+}
+
+.delete-btn:hover {
+  background: #c82333;
+}
+
+.invitation-info {
+  background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+  color: white;
+  padding: 25px;
+  border-radius: 12px;
+  text-align: center;
+}
+
+.invitation-info h3 {
+  margin-bottom: 15px;
+  font-size: 20px;
+}
+
+.invitation-code {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 15px;
+  margin-top: 15px;
+}
+
+.invitation-code code {
+  background: rgba(255, 255, 255, 0.2);
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+
+.copy-btn {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 10px 15px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.3s ease;
+}
+
+.copy-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
 /* Responsive Design */
 @media (max-width: 480px) {
   .login-card {
@@ -172,5 +342,16 @@
   
   .dashboard-content {
     padding: 30px 20px;
+  }
+
+  .table-header, .table-row {
+    grid-template-columns: 50px 1fr 80px 80px 80px;
+    font-size: 12px;
+    padding: 10px;
+  }
+
+  .invitation-code {
+    flex-direction: column;
+    gap: 10px;
   }
 }
