@@ -34,6 +34,9 @@ function App() {
   const [expandedItems, setExpandedItems] = useState({});
   const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'table'
   const [showCreateItemForm, setShowCreateItemForm] = useState(false);
+  const [userStrokes, setUserStrokes] = useState({}); // Track user's strokes per item
+  const [showCategoryMenu, setShowCategoryMenu] = useState(false);
+  const [showNavMenu, setShowNavMenu] = useState(false);
 
   useEffect(() => {
     // Check if user is already logged in
@@ -51,12 +54,17 @@ function App() {
       setUser(response.data.user);
       setIsLoggedIn(true);
       
-      // Auto-open Items for admin users
+      // Auto-open Items for admin users, Items for regular users
       if (response.data.user.role === 'admin') {
         fetchUsers();
         fetchInvitationCode();
         fetchItems();
         fetchRooms();
+        setShowItemManagement(true);
+      } else {
+        fetchItems();
+        fetchRooms();
+        fetchUserStrokes();
         setShowItemManagement(true);
       }
     } catch (error) {
@@ -163,7 +171,14 @@ function App() {
       });
       
       alert(`✅ Strich für "${itemName}" erfolgreich hinzugefügt!`);
-      fetchItems(); // Refresh items list to update stroke counts
+      
+      // Refresh data based on user role
+      if (user?.role === 'admin') {
+        fetchItems(selectedRoom);
+      } else {
+        fetchItems();
+        fetchUserStrokes();
+      }
     } catch (error) {
       setError(error.response?.data?.message || 'Fehler beim Hinzufügen des Strichs');
     }
@@ -224,6 +239,61 @@ function App() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleCSVExport = async (type) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`/api/export/${type}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        responseType: 'blob'
+      });
+      
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // Set filename based on type
+      const filenames = {
+        users: 'fixtrack_users.csv',
+        items: 'fixtrack_items.csv',
+        strokes: 'fixtrack_strokes.csv',
+        rooms: 'fixtrack_rooms.csv'
+      };
+      
+      link.setAttribute('download', filenames[type] || `fixtrack_${type}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      alert(`✅ ${type.charAt(0).toUpperCase() + type.slice(1)} erfolgreich exportiert!`);
+    } catch (error) {
+      console.error('Export error:', error);
+      alert('❌ Fehler beim Exportieren der Daten');
+    }
+  };
+
+  const fetchUserStrokes = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get('/api/user/strokes', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setUserStrokes(response.data);
+    } catch (error) {
+      console.error('Error fetching user strokes:', error);
+    }
+  };
+
+  const calculateUserTotal = () => {
+    let total = 0;
+    items.forEach(item => {
+      const userStrokeCount = userStrokes[item.id] || 0;
+      total += userStrokeCount * (item.price || 0);
+    });
+    return total;
   };
 
   const handleResetStrokes = async (itemId, itemName) => {
@@ -442,87 +512,115 @@ function App() {
             </div>
             <div className="header-actions">
               <button 
-                onClick={() => {
-                  // Reset all other screens
-                  setShowItemManagement(false);
-                  setShowRoomManagement(false);
-                  setShowAdminMenu(false);
-                  setShowChangePassword(!showChangePassword);
-                }}
-                className={`change-password-btn ${showChangePassword ? 'active' : ''}`}
+                className="nav-menu-btn"
+                onClick={() => setShowNavMenu(!showNavMenu)}
               >
-                🔑 Passwort ändern
+                ☰ Menü
               </button>
-              {user?.role === 'admin' && (
-                <>
-                  <button 
-                    onClick={() => {
-                      // Reset all other screens
-                      setShowRoomManagement(false);
-                      setShowAdminMenu(false);
-                      setShowChangePassword(false);
-                      setShowItemManagement(!showItemManagement);
-                      if (!showItemManagement) {
-                        fetchItems();
-                        fetchRooms();
-                      }
-                    }} 
-                    className={`items-btn ${showItemManagement ? 'active' : ''}`}
-                  >
-                    📝 Items
-                  </button>
-                  <button 
-                    onClick={() => {
-                      // Reset all other screens
-                      setShowItemManagement(false);
-                      setShowAdminMenu(false);
-                      setShowChangePassword(false);
-                      setShowRoomManagement(!showRoomManagement);
-                      if (!showRoomManagement) {
-                        fetchRooms();
-                      }
-                    }} 
-                    className={`rooms-btn ${showRoomManagement ? 'active' : ''}`}
-                  >
-                    📂 Kategorien
-                  </button>
+              
+              {showNavMenu && (
+                <div className="nav-dropdown">
                   <button 
                     onClick={() => {
                       // Reset all other screens
                       setShowItemManagement(false);
                       setShowRoomManagement(false);
-                      setShowChangePassword(false);
-                      setShowAdminMenu(!showAdminMenu);
-                      if (!showAdminMenu) {
-                        fetchUsers();
-                        fetchInvitationCode();
-                      }
+                      setShowAdminMenu(false);
+                      setShowChangePassword(!showChangePassword);
+                      setShowNavMenu(false);
                     }} 
-                    className={`admin-btn ${showAdminMenu ? 'active' : ''}`}
+                    className={`nav-dropdown-btn ${showChangePassword ? 'active' : ''}`}
                   >
-                    👥 User Management
+                    🔑 Passwort ändern
                   </button>
-                </>
+                  
+                  {user?.role === 'admin' && (
+                    <>
+                      <button 
+                        onClick={() => {
+                          // Reset all other screens
+                          setShowChangePassword(false);
+                          setShowRoomManagement(false);
+                          setShowAdminMenu(false);
+                          setShowItemManagement(!showItemManagement);
+                          setShowNavMenu(false);
+                          if (!showItemManagement) {
+                            fetchUsers();
+                            fetchInvitationCode();
+                            fetchItems();
+                            fetchRooms();
+                          }
+                        }} 
+                        className={`nav-dropdown-btn ${showItemManagement ? 'active' : ''}`}
+                      >
+                        📝 Items
+                      </button>
+                      <button 
+                        onClick={() => {
+                          // Reset all other screens
+                          setShowItemManagement(false);
+                          setShowChangePassword(false);
+                          setShowAdminMenu(false);
+                          setShowRoomManagement(!showRoomManagement);
+                          setShowNavMenu(false);
+                          if (!showRoomManagement) {
+                            fetchRooms();
+                          }
+                        }} 
+                        className={`nav-dropdown-btn ${showRoomManagement ? 'active' : ''}`}
+                      >
+                        📂 Kategorien
+                      </button>
+                      <button 
+                        onClick={() => {
+                          // Reset all other screens
+                          setShowItemManagement(false);
+                          setShowRoomManagement(false);
+                          setShowChangePassword(false);
+                          setShowAdminMenu(!showAdminMenu);
+                          setShowNavMenu(false);
+                          if (!showAdminMenu) {
+                            fetchUsers();
+                            fetchInvitationCode();
+                          }
+                        }} 
+                        className={`nav-dropdown-btn ${showAdminMenu ? 'active' : ''}`}
+                      >
+                        👥 User Management
+                      </button>
+                    </>
+                  )}
+                  
+                  {user?.role === 'user' && (
+                    <button 
+                      onClick={() => {
+                        // Reset all other screens
+                        setShowChangePassword(false);
+                        setShowItemManagement(!showItemManagement);
+                        setShowNavMenu(false);
+                        if (!showItemManagement) {
+                          fetchItems();
+                          fetchRooms();
+                          fetchUserStrokes();
+                        }
+                      }} 
+                      className={`nav-dropdown-btn ${showItemManagement ? 'active' : ''}`}
+                    >
+                      📝 Strichliste
+                    </button>
+                  )}
+                  
+                  <button 
+                    onClick={() => {
+                      setShowNavMenu(false);
+                      handleLogout();
+                    }} 
+                    className="nav-dropdown-btn logout"
+                  >
+                    Abmelden
+                  </button>
+                </div>
               )}
-              {user?.role === 'user' && (
-                <button 
-                  onClick={() => {
-                    // Reset all other screens
-                    setShowChangePassword(false);
-                    setShowItemManagement(!showItemManagement);
-                    if (!showItemManagement) {
-                      fetchItems();
-                      fetchRooms();
-                    }
-                  }} 
-                  className={`items-btn ${showItemManagement ? 'active' : ''}`}
-                >
-                  📝 Strichliste
-                </button>
-              )}
-              <button onClick={handleLogout} className="logout-btn">
-                Abmelden
-              </button>
             </div>
           </div>
           <div className="dashboard-content">
@@ -660,9 +758,79 @@ function App() {
                   </div>
                 </div>
               </div>
+            ) : showItemManagement && user?.role === 'user' ? (
+              <div className="user-pos-system">
+                <div className="pos-header">
+                  <h2>💰 Meine Ausgaben</h2>
+                  <div className="pos-summary">
+                    <div className="summary-item highlight">
+                      <span className="summary-label">Gesamtkosten:</span>
+                      <span className="summary-value total-cost">€{calculateUserTotal().toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="pos-categories">
+                  <div className="category-header">
+                    <h3>Kategorien</h3>
+                  </div>
+                  
+                  <div className="category-tabs">
+                    <button 
+                      className={`category-tab ${activeRoomTab === 'all' ? 'active' : ''}`}
+                      onClick={() => setActiveRoomTab('all')}
+                    >
+                      Alle Kategorien
+                    </button>
+                    {rooms.map(room => (
+                      <button 
+                        key={room.id}
+                        className={`category-tab ${activeRoomTab === room.id ? 'active' : ''}`}
+                        onClick={() => setActiveRoomTab(room.id)}
+                      >
+                        📂 {room.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                
+                <div className="pos-items-grid">
+                  {items
+                    .filter(item => activeRoomTab === 'all' || item.roomId === activeRoomTab)
+                    .map(item => (
+                      <div key={item.id} className="pos-item-box">
+                        <div className="item-box-header">
+                          <h3 className="item-box-name">{item.name}</h3>
+                          <div className="item-box-price">€{parseFloat(item.price || 0).toFixed(2)}</div>
+                        </div>
+                        
+                        <div className="item-box-info">
+                          <div className="item-box-stats">
+                            <div className="stat-item">
+                              <span className="stat-label">Preis pro Stück:</span>
+                              <span className="stat-value price">€{parseFloat(item.price || 0).toFixed(2)}</span>
+                            </div>
+                            <div className="stat-item">
+                              <span className="stat-label">Entnommen:</span>
+                              <span className="stat-value quantity">{userStrokes[item.id] || 0} Stück</span>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <button 
+                          className="item-box-add-btn"
+                          onClick={() => handleAddStroke(item.id, item.name)}
+                        >
+                          <span className="add-icon">+</span>
+                          <span className="add-text">Hinzufügen</span>
+                        </button>
+                      </div>
+                    ))}
+                </div>
+              </div>
             ) : showItemManagement ? (
               <div className="item-management">
-                <h2>📝 {user?.role === 'admin' ? 'Item Management' : 'Strichliste'}</h2>
+                <h2>📝 Item Management</h2>
                 
                 {user?.role === 'admin' && (
                   <div className="create-item-section">
@@ -742,22 +910,6 @@ function App() {
                     <div className="items-header">
                       <h3>{user?.role === 'admin' ? 'Alle Items' : 'Verfügbare Items'}</h3>
                       <div className="items-controls">
-                        {user?.role === 'admin' && (
-                          <div className="view-mode-toggle">
-                            <button 
-                              className={`view-btn ${viewMode === 'grid' ? 'active' : ''}`}
-                              onClick={() => setViewMode('grid')}
-                            >
-                              📋 Grid
-                            </button>
-                            <button 
-                              className={`view-btn ${viewMode === 'table' ? 'active' : ''}`}
-                              onClick={() => setViewMode('table')}
-                            >
-                              📊 Tabelle
-                            </button>
-                          </div>
-                        )}
                         {user?.role === 'admin' ? (
                           <div className="room-filter">
                             <label htmlFor="room-filter">Kategorie filtern:</label>
@@ -794,6 +946,11 @@ function App() {
                         <button onClick={() => fetchItems(user?.role === 'admin' ? selectedRoom : activeRoomTab)} className="refresh-btn">
                           🔄 Aktualisieren
                         </button>
+                        {user?.role === 'admin' && (
+                          <button onClick={() => handleCSVExport('items')} className="export-btn">
+                            📊 Export
+                          </button>
+                        )}
                       </div>
                     </div>
                   
@@ -802,22 +959,38 @@ function App() {
                       <p>Noch keine Items vorhanden.</p>
                       {user?.role === 'admin' && <p>Erstelle dein erstes Item oben!</p>}
                     </div>
-                  ) : viewMode === 'table' && user?.role === 'admin' ? (
+                  ) : (
                     <div className="items-table-container">
                       <table className="items-table">
                         <thead>
                           <tr>
+                            <th></th>
                             <th>Name</th>
                             <th>Kategorie</th>
                             <th>Preis</th>
                             <th>Striche</th>
-                            <th>Details</th>
                             <th>Aktionen</th>
                           </tr>
                         </thead>
                         <tbody>
                           {items.map(item => (
                             <tr key={item.id} className="item-row">
+                              <td className="item-details-cell">
+                                <button 
+                                  className="details-plus-btn"
+                                  onClick={() => {
+                                    setExpandedItems({ 
+                                      ...expandedItems, 
+                                      [item.id]: !expandedItems[item.id] 
+                                    });
+                                    if (!expandedItems[item.id]) {
+                                      fetchItemAnalytics(item.id);
+                                    }
+                                  }}
+                                >
+                                  {expandedItems[item.id] ? '−' : '+'}
+                                </button>
+                              </td>
                               <td className="item-name-cell">
                                 <strong>{item.name}</strong>
                                 {item.description && (
@@ -834,22 +1007,6 @@ function App() {
                                 <span className="stroke-count-badge">
                                   {item.strokeCount || 0}
                                 </span>
-                              </td>
-                              <td className="item-details-cell">
-                                <button 
-                                  className="details-btn"
-                                  onClick={() => {
-                                    setExpandedItems({ 
-                                      ...expandedItems, 
-                                      [item.id]: !expandedItems[item.id] 
-                                    });
-                                    if (!expandedItems[item.id]) {
-                                      fetchItemAnalytics(item.id);
-                                    }
-                                  }}
-                                >
-                                  {expandedItems[item.id] ? '🔼' : '🔽'} Details
-                                </button>
                               </td>
                               <td className="item-actions-cell">
                                 <div className="table-actions">
@@ -951,206 +1108,77 @@ function App() {
                         )
                       ))}
                     </div>
-                  ) : (
-                    <div className="items-grid">
-                      {items.map(item => (
-                        <div key={item.id} className="item-card">
-                          <div className="item-header">
-                            <div className="item-title">
-                              <h4>{item.name}</h4>
-                              <span className="item-room">📂 {item.roomName}</span>
-                              {item.price && (
-                                <span className="item-price">€{parseFloat(item.price).toFixed(2)}</span>
-                              )}
-                            </div>
-                            {user?.role === 'admin' && (
-                              <div className="item-actions">
-                                <button 
-                                  onClick={() => {
-                                    setShowItemEdit({ ...showItemEdit, [item.id]: !showItemEdit[item.id] });
-                                    if (!showItemEdit[item.id]) {
-                                        setEditItemData({ 
-                                          ...editItemData, 
-                                          [item.id]: { 
-                                            name: item.name, 
-                                            description: item.description, 
-                                            roomId: item.roomId,
-                                            price: item.price
-                                          } 
-                                        });
-                                    }
-                                  }}
-                                  className="edit-item-btn"
-                                >
-                                  ✏️ Bearbeiten
-                                </button>
-                                <button 
-                                  onClick={() => handleResetStrokes(item.id, item.name)}
-                                  className="reset-strokes-btn"
-                                >
-                                  🔄 Reset
-                                </button>
-                                <button 
-                                  onClick={() => {
-                                    setShowItemAnalytics({ ...showItemAnalytics, [item.id]: !showItemAnalytics[item.id] });
-                                    if (!showItemAnalytics[item.id]) {
-                                      fetchItemAnalytics(item.id);
-                                    }
-                                  }}
-                                  className="analytics-btn"
-                                >
-                                  📊 Analytics
-                                </button>
-                                <button 
-                                  onClick={() => handleDeleteItem(item.id)}
-                                  className="delete-item-btn"
-                                >
-                                  🗑️
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                          
-                          {item.description && (
-                            <p className="item-description">{item.description}</p>
-                          )}
-                          
-                          {user?.role === 'admin' && (
-                            <div className="item-stats">
-                              <div className="stroke-count-display">
-                                <span className="stroke-count-badge">
-                                  {item.strokeCount || 0} Striche
-                                </span>
-                                {item.lastStroke && (
-                                  <span className="last-stroke">
-                                    Letzter: {new Date(item.lastStroke).toLocaleDateString('de-DE')}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          )}
-                          
-                          <button 
-                            onClick={() => handleAddStroke(item.id, item.name)}
-                            className="add-stroke-btn"
-                          >
-                            ➕ Strich hinzufügen
-                          </button>
-                          
-                          {showItemEdit[item.id] && (
-                            <div className="item-edit-form">
-                              <h5>✏️ Item bearbeiten</h5>
-                              <div className="edit-form-group">
-                                <input
-                                  type="text"
-                                  placeholder="Neuer Name"
-                                  value={editItemData[item.id]?.name || ''}
-                                  onChange={(e) => setEditItemData({ 
-                                    ...editItemData, 
-                                    [item.id]: { 
-                                      ...editItemData[item.id], 
-                                      name: e.target.value 
-                                    } 
-                                  })}
-                                  className="edit-input"
-                                />
-                                <select
-                                  value={editItemData[item.id]?.roomId || ''}
-                                  onChange={(e) => setEditItemData({ 
-                                    ...editItemData, 
-                                    [item.id]: { 
-                                      ...editItemData[item.id], 
-                                      roomId: e.target.value 
-                                    } 
-                                  })}
-                                  className="edit-select"
-                                >
-                                  {rooms.map(room => (
-                                    <option key={room.id} value={room.id}>{room.name}</option>
-                                  ))}
-                                </select>
-                                <input
-                                  type="text"
-                                  placeholder="Neue Beschreibung"
-                                  value={editItemData[item.id]?.description || ''}
-                                  onChange={(e) => setEditItemData({ 
-                                    ...editItemData, 
-                                    [item.id]: { 
-                                      ...editItemData[item.id], 
-                                      description: e.target.value 
-                                    } 
-                                  })}
-                                  className="edit-input"
-                                />
-                                <input
-                                  type="number"
-                                  placeholder="Neuer Preis (€)"
-                                  value={editItemData[item.id]?.price || ''}
-                                  onChange={(e) => setEditItemData({ 
-                                    ...editItemData, 
-                                    [item.id]: { 
-                                      ...editItemData[item.id], 
-                                      price: e.target.value 
-                                    } 
-                                  })}
-                                  className="edit-input"
-                                  step="0.01"
-                                  min="0"
-                                />
-                                <div className="edit-actions">
-                                  <button 
-                                    onClick={() => handleUpdateItem(item.id)}
-                                    className="save-edit-btn"
-                                  >
-                                    💾 Speichern
-                                  </button>
-                                  <button 
-                                    onClick={() => {
-                                      setShowItemEdit({ ...showItemEdit, [item.id]: false });
-                                      setEditItemData({ ...editItemData, [item.id]: {} });
-                                    }}
-                                    className="cancel-edit-btn"
-                                  >
-                                    ❌ Abbrechen
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                          
-                          {showItemAnalytics[item.id] && itemAnalytics[item.id] && (
-                            <div className="item-analytics">
-                              <h5>📊 Analytics für {item.name}</h5>
-                              <div className="analytics-content">
-                                <div className="analytics-summary">
-                                  <p><strong>Gesamt Striche:</strong> {itemAnalytics[item.id].totalStrokes}</p>
-                                </div>
-                                
-                                <div className="strokes-by-user">
-                                  <h6>Striche pro User:</h6>
-                                  {itemAnalytics[item.id].strokesByUser.map(user => (
-                                    <div key={user.username} className="user-stroke">
-                                      <span>{user.username}: {user.strokeCount}</span>
-                                      <small>(letzter: {new Date(user.lastStroke).toLocaleDateString('de-DE')})</small>
-                                    </div>
-                                  ))}
-                                </div>
-                                
-                                <div className="recent-strokes">
-                                  <h6>Letzte 10 Striche:</h6>
-                                  {itemAnalytics[item.id].recentStrokes.map(stroke => (
-                                    <div key={stroke.id} className="recent-stroke">
-                                      {stroke.username} - {new Date(stroke.createdAt).toLocaleString('de-DE')}
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
                   )}
+                </div>
+              </div>
+            ) : showItemManagement && user?.role === 'user' ? (
+              <div className="user-pos-system">
+                <div className="pos-header">
+                  <h2>💰 Meine Ausgaben</h2>
+                  <div className="pos-summary">
+                    <div className="summary-item highlight">
+                      <span className="summary-label">Gesamtkosten:</span>
+                      <span className="summary-value total-cost">€{calculateUserTotal().toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="pos-categories">
+                  <div className="category-header">
+                    <h3>Kategorien</h3>
+                  </div>
+                  
+                  <div className="category-tabs">
+                    <button 
+                      className={`category-tab ${activeRoomTab === 'all' ? 'active' : ''}`}
+                      onClick={() => setActiveRoomTab('all')}
+                    >
+                      Alle Kategorien
+                    </button>
+                    {rooms.map(room => (
+                      <button 
+                        key={room.id}
+                        className={`category-tab ${activeRoomTab === room.id ? 'active' : ''}`}
+                        onClick={() => setActiveRoomTab(room.id)}
+                      >
+                        📂 {room.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                
+                <div className="pos-items-grid">
+                  {items
+                    .filter(item => activeRoomTab === 'all' || item.roomId === activeRoomTab)
+                    .map(item => (
+                      <div key={item.id} className="pos-item-box">
+                        <div className="item-box-header">
+                          <h3 className="item-box-name">{item.name}</h3>
+                          <div className="item-box-price">€{parseFloat(item.price || 0).toFixed(2)}</div>
+                        </div>
+                        
+                        <div className="item-box-info">
+                          <div className="item-box-stats">
+                            <div className="stat-item">
+                              <span className="stat-label">Preis pro Stück:</span>
+                              <span className="stat-value price">€{parseFloat(item.price || 0).toFixed(2)}</span>
+                            </div>
+                            <div className="stat-item">
+                              <span className="stat-label">Entnommen:</span>
+                              <span className="stat-value quantity">{userStrokes[item.id] || 0} Stück</span>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <button 
+                          className="item-box-add-btn"
+                          onClick={() => handleAddStroke(item.id, item.name)}
+                        >
+                          <span className="add-icon">+</span>
+                          <span className="add-text">Hinzufügen</span>
+                        </button>
+                      </div>
+                    ))}
                 </div>
               </div>
             ) : showAdminMenu && user?.role === 'admin' ? (

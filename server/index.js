@@ -2,6 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const fs = require('fs');
+const path = require('path');
 const config = require('./config');
 
 const app = express();
@@ -10,37 +12,91 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// In-memory user storage (in production, use a database)
-const users = [
-  {
-    id: 1,
-    username: config.ADMIN_USERNAME,
-    password: bcrypt.hashSync(config.ADMIN_PASSWORD, 10),
-    email: 'admin@example.com',
-    role: 'admin',
-    createdAt: new Date()
+// Data persistence functions
+const dataFile = path.join(__dirname, 'data.json');
+
+const loadData = () => {
+  try {
+    if (fs.existsSync(dataFile)) {
+      const data = JSON.parse(fs.readFileSync(dataFile, 'utf8'));
+      return {
+        users: data.users || [
+          {
+            id: 1,
+            username: config.ADMIN_USERNAME,
+            password: bcrypt.hashSync(config.ADMIN_PASSWORD, 10),
+            email: 'admin@example.com',
+            role: 'admin',
+            createdAt: new Date()
+          }
+        ],
+        items: data.items || [],
+        strokes: data.strokes || [],
+        rooms: data.rooms || [
+          {
+            id: 1,
+            name: 'Allgemein',
+            description: 'Standard-Raum für alle Items',
+            createdAt: new Date(),
+            createdBy: 1
+          }
+        ],
+        invitationCode: data.invitationCode || 'Dule-1212'
+      };
+    }
+  } catch (error) {
+    console.error('Error loading data:', error);
   }
-];
+  
+  // Default data if file doesn't exist or error
+  return {
+    users: [
+      {
+        id: 1,
+        username: config.ADMIN_USERNAME,
+        password: bcrypt.hashSync(config.ADMIN_PASSWORD, 10),
+        email: 'admin@example.com',
+        role: 'admin',
+        createdAt: new Date()
+      }
+    ],
+    items: [],
+    strokes: [],
+    rooms: [
+      {
+        id: 1,
+        name: 'Allgemein',
+        description: 'Standard-Raum für alle Items',
+        createdAt: new Date(),
+        createdBy: 1
+      }
+    ],
+    invitationCode: 'Dule-1212'
+  };
+};
 
-// Configurable invitation code (starts with default)
-let INVITATION_CODE = 'Dule-1212';
-
-// In-memory items storage (in production, use a database)
-const items = [];
-
-// In-memory strokes storage (in production, use a database)
-const strokes = [];
-
-// In-memory rooms storage (in production, use a database)
-const rooms = [
-  {
-    id: 1,
-    name: 'Allgemein',
-    description: 'Standard-Raum für alle Items',
-    createdAt: new Date(),
-    createdBy: 1
+const saveData = () => {
+  try {
+    const data = {
+      users,
+      items,
+      strokes,
+      rooms,
+      invitationCode: INVITATION_CODE
+    };
+    fs.writeFileSync(dataFile, JSON.stringify(data, null, 2));
+  } catch (error) {
+    console.error('Error saving data:', error);
   }
-];
+};
+
+// Load data on startup
+const data = loadData();
+const users = data.users;
+const items = data.items;
+const strokes = data.strokes;
+const rooms = data.rooms;
+let INVITATION_CODE = data.invitationCode;
 
 // Middleware to verify JWT token
 const authenticateToken = (req, res, next) => {
@@ -372,6 +428,7 @@ app.post('/api/items', authenticateToken, requireAdmin, (req, res) => {
     };
     
     items.push(newItem);
+    saveData(); // Save data to file
     
     res.json({
       message: 'Item created successfully',
@@ -474,6 +531,7 @@ app.post('/api/items/:id/stroke', authenticateToken, (req, res) => {
     };
     
     strokes.push(newStroke);
+    saveData(); // Save data to file
     
     res.json({
       message: 'Stroke added successfully',
@@ -750,6 +808,26 @@ app.delete('/api/rooms/:id', authenticateToken, requireAdmin, (req, res) => {
     res.json({ message: 'Room deleted successfully' });
   } catch (error) {
     console.error('Delete room error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Get user's strokes (User only)
+app.get('/api/user/strokes', authenticateToken, (req, res) => {
+  try {
+    const userStrokes = {};
+    const userStrokesList = strokes.filter(s => s.userId === req.user.id);
+    
+    userStrokesList.forEach(stroke => {
+      if (!userStrokes[stroke.itemId]) {
+        userStrokes[stroke.itemId] = 0;
+      }
+      userStrokes[stroke.itemId]++;
+    });
+    
+    res.json(userStrokes);
+  } catch (error) {
+    console.error('User strokes error:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 });

@@ -1,0 +1,75 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "username": "admin",
+      "password": "$2a$10$C.Lu3lAhqpwDfocqZ09AN.g3.75na10C3230dazHlugcX6HYaQypO",
+      "email": "admin@example.com",
+      "role": "admin",
+      "createdAt": "2025-09-09T21:31:41.666Z"
+    },
+    {
+      "id": 2,
+      "username": "dule",
+      "password": "$2a$10$.X08PoecGkf3riTdo6UP9./lxrShc./UFLgUyAoTw.IMQHhudnff.",
+      "email": "dusanristeski12@gmail.com",
+      "role": "user",
+      "createdAt": "2025-09-09T21:35:24.398Z"
+    }
+  ],
+  "items": [
+    {
+      "id": 1,
+      "name": "Cola",
+      "description": "Coca-Cola aus der Kantine",
+      "roomId": 1,
+      "roomName": "Allgemein",
+      "price": 12,
+      "createdAt": "2025-09-09T21:33:30.650Z",
+      "createdBy": 1
+    },
+    {
+      "id": 2,
+      "name": "fanta",
+      "description": "fanta23",
+      "roomId": 1,
+      "roomName": "Allgemein",
+      "price": 23,
+      "createdAt": "2025-09-09T21:33:41.051Z",
+      "createdBy": 1
+    }
+  ],
+  "strokes": [
+    {
+      "id": 1,
+      "itemId": 1,
+      "userId": 2,
+      "username": "dule",
+      "createdAt": "2025-09-09T21:35:59.416Z"
+    },
+    {
+      "id": 2,
+      "itemId": 2,
+      "userId": 2,
+      "username": "dule",
+      "createdAt": "2025-09-09T21:36:03.766Z"
+    },
+    {
+      "id": 3,
+      "itemId": 1,
+      "userId": 2,
+      "username": "dule",
+      "createdAt": "2025-09-09T21:36:36.706Z"
+    }
+  ],
+  "rooms": [
+    {
+      "id": 1,
+      "name": "Allgemein",
+      "description": "Standard-Raum für alle Items",
+      "createdAt": "2025-09-09T21:31:41.667Z",
+      "createdBy": 1
+    }
+  ],
+  "invitationCode": "Dule-1212"
+}
