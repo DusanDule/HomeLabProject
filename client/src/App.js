@@ -430,8 +430,26 @@ function App() {
             </div>
             <div className="header-actions">
               <button 
-                onClick={() => setShowChangePassword(!showChangePassword)}
-                className="change-password-btn"
+                onClick={() => {
+                  // Reset all other screens
+                  setShowItemManagement(false);
+                  setShowRoomManagement(false);
+                  setShowAdminMenu(false);
+                  setShowChangePassword(false);
+                }}
+                className={`dashboard-btn ${!showItemManagement && !showRoomManagement && !showAdminMenu && !showChangePassword ? 'active' : ''}`}
+              >
+                🏠 Dashboard
+              </button>
+              <button 
+                onClick={() => {
+                  // Reset all other screens
+                  setShowItemManagement(false);
+                  setShowRoomManagement(false);
+                  setShowAdminMenu(false);
+                  setShowChangePassword(!showChangePassword);
+                }}
+                className={`change-password-btn ${showChangePassword ? 'active' : ''}`}
               >
                 🔑 Passwort ändern
               </button>
@@ -439,53 +457,67 @@ function App() {
                 <>
                   <button 
                     onClick={() => {
+                      // Reset all other screens
+                      setShowRoomManagement(false);
+                      setShowAdminMenu(false);
+                      setShowChangePassword(false);
                       setShowItemManagement(!showItemManagement);
                       if (!showItemManagement) {
                         fetchItems();
                         fetchRooms();
                       }
                     }} 
-                    className="items-btn"
+                    className={`items-btn ${showItemManagement ? 'active' : ''}`}
                   >
-                    {showItemManagement ? 'Dashboard' : '📝 Items'}
+                    📝 Items
                   </button>
                   <button 
                     onClick={() => {
+                      // Reset all other screens
+                      setShowItemManagement(false);
+                      setShowAdminMenu(false);
+                      setShowChangePassword(false);
                       setShowRoomManagement(!showRoomManagement);
                       if (!showRoomManagement) {
                         fetchRooms();
                       }
                     }} 
-                    className="rooms-btn"
+                    className={`rooms-btn ${showRoomManagement ? 'active' : ''}`}
                   >
-                    {showRoomManagement ? 'Dashboard' : '🏠 Räume'}
+                    🏠 Räume
                   </button>
                   <button 
                     onClick={() => {
+                      // Reset all other screens
+                      setShowItemManagement(false);
+                      setShowRoomManagement(false);
+                      setShowChangePassword(false);
                       setShowAdminMenu(!showAdminMenu);
                       if (!showAdminMenu) {
                         fetchUsers();
                         fetchInvitationCode();
                       }
                     }} 
-                    className="admin-btn"
+                    className={`admin-btn ${showAdminMenu ? 'active' : ''}`}
                   >
-                    {showAdminMenu ? 'Dashboard' : '👥 User Management'}
+                    👥 User Management
                   </button>
                 </>
               )}
               {user?.role === 'user' && (
                 <button 
                   onClick={() => {
+                    // Reset all other screens
+                    setShowChangePassword(false);
                     setShowItemManagement(!showItemManagement);
                     if (!showItemManagement) {
                       fetchItems();
                       fetchRooms();
                     }
                   }} 
-                  className="items-btn"
+                  className={`items-btn ${showItemManagement ? 'active' : ''}`}
                 >
-                  {showItemManagement ? 'Dashboard' : '📝 Strichliste'}
+                  📝 Strichliste
                 </button>
               )}
               <button onClick={handleLogout} className="logout-btn">

@@ -152,7 +152,7 @@
   margin: 0;
 }
 
-.logout-btn, .admin-btn, .change-password-btn, .items-btn, .rooms-btn {
+.logout-btn, .admin-btn, .change-password-btn, .items-btn, .rooms-btn, .dashboard-btn {
   background: rgba(255, 255, 255, 0.2);
   color: white;
   border: 1px solid rgba(255, 255, 255, 0.3);
@@ -166,7 +166,7 @@
   text-align: center;
 }
 
-.logout-btn:hover, .admin-btn:hover, .change-password-btn:hover, .items-btn:hover, .rooms-btn:hover {
+.logout-btn:hover, .admin-btn:hover, .change-password-btn:hover, .items-btn:hover, .rooms-btn:hover, .dashboard-btn:hover {
   background: rgba(255, 255, 255, 0.3);
 }
 
@@ -188,6 +188,19 @@
 .rooms-btn {
   background: rgba(33, 150, 243, 0.3);
   border-color: rgba(33, 150, 243, 0.5);
+}
+
+.dashboard-btn {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+/* Active button styles */
+.dashboard-btn.active, .change-password-btn.active, .items-btn.active, .rooms-btn.active, .admin-btn.active {
+  background: rgba(255, 255, 255, 0.4);
+  border-color: rgba(255, 255, 255, 0.6);
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(255, 255, 255, 0.2);
 }
 
 .dashboard-content {
@@ -1313,7 +1326,7 @@
     gap: 10px;
   }
 
-  .logout-btn, .admin-btn, .change-password-btn, .items-btn, .rooms-btn {
+  .logout-btn, .admin-btn, .change-password-btn, .items-btn, .rooms-btn, .dashboard-btn {
     min-width: 200px;
     width: 100%;
   }
