@@ -50,25 +50,6 @@ const initializeDatabase = async () => {
       );
     }
     
-    // Create default billing period if none exist
-    const billingPeriodCount = await db.get('SELECT COUNT(*) as count FROM billing_periods');
-    if (billingPeriodCount.count === 0) {
-      const currentDate = new Date();
-      const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-      const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-      
-      await db.run(
-        'INSERT INTO billing_periods (name, start_date, end_date, is_active, created_by) VALUES (?, ?, ?, ?, ?)',
-        [
-          `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`,
-          startOfMonth.toISOString().split('T')[0],
-          endOfMonth.toISOString().split('T')[0],
-          1,
-          1
-        ]
-      );
-    }
-    
     isDbReady = true;
     console.log('Database initialized successfully');
   } catch (error) {
@@ -167,7 +148,7 @@ app.get('/api/protected', authenticateToken, (req, res) => {
 });
 
 // User registration endpoint
-app.post('/api/register', async (req, res) => {
+app.post('/api/register', checkDbReady, async (req, res) => {
   try {
     const { username, password, email, invitationCode } = req.body;
 
@@ -196,10 +177,9 @@ app.post('/api/register', async (req, res) => {
     }
 
     // Create new user
-    const hashedPassword = bcrypt.hashSync(password, 10);
     const result = await db.run(
       'INSERT INTO users (username, password, email, role, created_at) VALUES (?, ?, ?, ?, ?)',
-      [username, hashedPassword, email, 'user', new Date()]
+      [username, bcrypt.hashSync(password, 10), email, 'user', new Date()]
     );
 
     res.json({
@@ -215,8 +195,8 @@ app.post('/api/register', async (req, res) => {
 // Get all users (admin only)
 app.get('/api/users', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const userList = await db.all('SELECT id, username, email, role, created_at as createdAt FROM users');
-    res.json({ users: userList });
+    const users = await db.all('SELECT id, username, email, role, created_at FROM users ORDER BY created_at DESC');
+    res.json({ users });
   } catch (error) {
     console.error('Get users error:', error);
     res.status(500).json({ message: 'Internal server error' });
@@ -232,11 +212,12 @@ app.delete('/api/users/:id', authenticateToken, requireAdmin, async (req, res) =
       return res.status(400).json({ message: 'Cannot delete admin user' });
     }
 
-    const result = await db.run('DELETE FROM users WHERE id = ?', [userId]);
-    if (result.changes === 0) {
+    const user = await db.get('SELECT * FROM users WHERE id = ?', [userId]);
+    if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
+    await db.run('DELETE FROM users WHERE id = ?', [userId]);
     res.json({ message: 'User deleted successfully' });
   } catch (error) {
     console.error('Delete user error:', error);
@@ -253,7 +234,11 @@ app.put('/api/admin/invitation-code', authenticateToken, requireAdmin, async (re
       return res.status(400).json({ message: 'Invitation code must be at least 3 characters long' });
     }
     
-    await db.run('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['invitation_code', newCode.trim()]);
+    await db.run(
+      'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
+      ['invitation_code', newCode.trim()]
+    );
+    
     res.json({ 
       message: 'Invitation code updated successfully',
       newCode: newCode.trim()
@@ -291,8 +276,10 @@ app.put('/api/users/:id/reset-password', authenticateToken, requireAdmin, async 
     }
     
     // Update password
-    const hashedPassword = bcrypt.hashSync(newPassword, 10);
-    await db.run('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, userId]);
+    await db.run(
+      'UPDATE users SET password = ? WHERE id = ?',
+      [bcrypt.hashSync(newPassword, 10), userId]
+    );
     
     res.json({ 
       message: 'Password reset successfully',
@@ -329,8 +316,10 @@ app.put('/api/change-password', authenticateToken, async (req, res) => {
     }
     
     // Update password
-    const hashedPassword = bcrypt.hashSync(newPassword, 10);
-    await db.run('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, req.user.id]);
+    await db.run(
+      'UPDATE users SET password = ? WHERE id = ?',
+      [bcrypt.hashSync(newPassword, 10), req.user.id]
+    );
     
     res.json({ 
       message: 'Password changed successfully',
@@ -378,6 +367,82 @@ app.put('/api/users/:id/role', authenticateToken, requireAdmin, async (req, res)
   }
 });
 
+// Billing Period Management Endpoints
+// Create new billing period (admin only)
+app.post('/api/billing-periods', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { name, startDate, endDate } = req.body;
+    
+    if (!name || !startDate || !endDate) {
+      return res.status(400).json({ message: 'Name, start date and end date are required' });
+    }
+    
+    // Deactivate all other periods
+    await db.run('UPDATE billing_periods SET is_active = 0');
+    
+    // Create new billing period
+    const result = await db.run(
+      'INSERT INTO billing_periods (name, start_date, end_date, is_active, created_at, created_by) VALUES (?, ?, ?, 1, ?, ?)',
+      [name, startDate, endDate, new Date(), req.user.id]
+    );
+    
+    const newPeriod = await db.get('SELECT * FROM billing_periods WHERE id = ?', [result.id]);
+    
+    res.json({
+      message: 'Billing period created successfully',
+      billingPeriod: newPeriod
+    });
+  } catch (error) {
+    console.error('Create billing period error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Get all billing periods
+app.get('/api/billing-periods', authenticateToken, async (req, res) => {
+  try {
+    const periods = await db.all('SELECT * FROM billing_periods ORDER BY created_at DESC');
+    res.json({ billingPeriods: periods });
+  } catch (error) {
+    console.error('Get billing periods error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Get active billing period
+app.get('/api/billing-periods/active', authenticateToken, async (req, res) => {
+  try {
+    const activePeriod = await db.get('SELECT * FROM billing_periods WHERE is_active = 1');
+    res.json({ billingPeriod: activePeriod });
+  } catch (error) {
+    console.error('Get active billing period error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Set active billing period (admin only)
+app.put('/api/billing-periods/:id/activate', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const periodId = parseInt(req.params.id);
+    
+    // Deactivate all periods
+    await db.run('UPDATE billing_periods SET is_active = 0');
+    
+    // Activate selected period
+    await db.run('UPDATE billing_periods SET is_active = 1 WHERE id = ?', [periodId]);
+    
+    const period = await db.get('SELECT * FROM billing_periods WHERE id = ?', [periodId]);
+    
+    res.json({
+      message: 'Billing period activated successfully',
+      billingPeriod: period
+    });
+  } catch (error) {
+    console.error('Activate billing period error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
 // Item Management Endpoints (Admin only)
 // Create new item
 app.post('/api/items', authenticateToken, requireAdmin, async (req, res) => {
@@ -393,15 +458,15 @@ app.post('/api/items', authenticateToken, requireAdmin, async (req, res) => {
     }
     
     // Check if room exists
-    const room = await db.get('SELECT * FROM rooms WHERE id = ?', [roomId]);
+    const room = await db.get('SELECT * FROM rooms WHERE id = ?', [parseInt(roomId)]);
     if (!room) {
       return res.status(400).json({ message: 'Room not found' });
     }
     
     // Check if item already exists in this room
     const existingItem = await db.get(
-      'SELECT * FROM items WHERE LOWER(name) = LOWER(?) AND room_id = ?', 
-      [name.trim(), roomId]
+      'SELECT * FROM items WHERE LOWER(name) = LOWER(?) AND room_id = ?',
+      [name, parseInt(roomId)]
     );
     if (existingItem) {
       return res.status(400).json({ message: 'Item with this name already exists in this room' });
@@ -409,19 +474,10 @@ app.post('/api/items', authenticateToken, requireAdmin, async (req, res) => {
     
     const result = await db.run(
       'INSERT INTO items (name, description, room_id, room_name, price, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [name.trim(), description ? description.trim() : '', roomId, room.name, price ? parseFloat(price) : 0, new Date(), req.user.id]
+      [name.trim(), description ? description.trim() : '', parseInt(roomId), room.name, price ? parseFloat(price) : 0, new Date(), req.user.id]
     );
     
-    const newItem = {
-      id: result.id,
-      name: name.trim(),
-      description: description ? description.trim() : '',
-      roomId: parseInt(roomId),
-      roomName: room.name,
-      price: price ? parseFloat(price) : 0,
-      createdAt: new Date(),
-      createdBy: req.user.id
-    };
+    const newItem = await db.get('SELECT * FROM items WHERE id = ?', [result.id]);
     
     res.json({
       message: 'Item created successfully',
@@ -437,40 +493,48 @@ app.post('/api/items', authenticateToken, requireAdmin, async (req, res) => {
 app.get('/api/items', authenticateToken, async (req, res) => {
   try {
     const user = await db.get('SELECT * FROM users WHERE id = ?', [req.user.id]);
-    const { roomId } = req.query; // Optional room filter
+    const { roomId, billingPeriodId } = req.query;
     
-    let query = `
-      SELECT i.*, r.name as room_name,
-      (SELECT COUNT(*) FROM strokes s WHERE s.item_id = i.id) as stroke_count,
-      (SELECT s.created_at FROM strokes s WHERE s.item_id = i.id ORDER BY s.created_at DESC LIMIT 1) as last_stroke
-      FROM items i 
-      JOIN rooms r ON i.room_id = r.id
-    `;
+    let query = 'SELECT * FROM items';
+    let params = [];
     
-    const params = [];
     if (roomId && roomId !== 'all') {
-      query += ' WHERE i.room_id = ?';
-      params.push(roomId);
+      query += ' WHERE room_id = ?';
+      params.push(parseInt(roomId));
     }
     
-    query += ' ORDER BY i.name';
+    query += ' ORDER BY name';
     
     const items = await db.all(query, params);
     
     if (user.role === 'admin') {
       // Admin sees all items with stroke counts
-      const itemsWithStrokes = items.map(item => ({
-        id: item.id,
-        name: item.name,
-        description: item.description,
-        roomId: item.room_id,
-        roomName: item.room_name,
-        price: item.price,
-        createdAt: item.created_at,
-        createdBy: item.created_by,
-        strokeCount: item.stroke_count,
-        lastStroke: item.last_stroke
+      const itemsWithStrokes = await Promise.all(items.map(async (item) => {
+        let strokeQuery = 'SELECT COUNT(*) as count FROM strokes WHERE item_id = ?';
+        let strokeParams = [item.id];
+        
+        // Filter strokes by billing period if specified
+        if (billingPeriodId && billingPeriodId !== 'all') {
+          const period = await db.get('SELECT * FROM billing_periods WHERE id = ?', [parseInt(billingPeriodId)]);
+          if (period) {
+            strokeQuery += ' AND created_at >= ? AND created_at <= ?';
+            strokeParams.push(period.start_date, period.end_date);
+          }
+        }
+        
+        const strokeCount = await db.get(strokeQuery, strokeParams);
+        const lastStroke = await db.get(
+          'SELECT created_at FROM strokes WHERE item_id = ? ORDER BY created_at DESC LIMIT 1',
+          [item.id]
+        );
+        
+        return {
+          ...item,
+          strokeCount: strokeCount.count,
+          lastStroke: lastStroke ? lastStroke.created_at : null
+        };
       }));
+      
       res.json({ items: itemsWithStrokes });
     } else {
       // Users see only item names and IDs
@@ -484,6 +548,77 @@ app.get('/api/items', authenticateToken, async (req, res) => {
     }
   } catch (error) {
     console.error('Get items error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Update item (Admin only)
+app.put('/api/items/:id', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const itemId = parseInt(req.params.id);
+    const { name, description, roomId, price } = req.body;
+    
+    const item = await db.get('SELECT * FROM items WHERE id = ?', [itemId]);
+    if (!item) {
+      return res.status(404).json({ message: 'Item not found' });
+    }
+    
+    if (name && name.trim().length > 0) {
+      // Check if new name already exists in the same room
+      const existingItem = await db.get(
+        'SELECT * FROM items WHERE id != ? AND LOWER(name) = LOWER(?) AND room_id = ?',
+        [itemId, name, roomId ? parseInt(roomId) : item.room_id]
+      );
+      if (existingItem) {
+        return res.status(400).json({ message: 'Item with this name already exists in this room' });
+      }
+    }
+    
+    if (roomId) {
+      const room = await db.get('SELECT * FROM rooms WHERE id = ?', [parseInt(roomId)]);
+      if (!room) {
+        return res.status(400).json({ message: 'Room not found' });
+      }
+    }
+    
+    // Build update query dynamically
+    const updates = [];
+    const params = [];
+    
+    if (name && name.trim().length > 0) {
+      updates.push('name = ?');
+      params.push(name.trim());
+    }
+    
+    if (description !== undefined) {
+      updates.push('description = ?');
+      params.push(description ? description.trim() : '');
+    }
+    
+    if (roomId) {
+      const room = await db.get('SELECT * FROM rooms WHERE id = ?', [parseInt(roomId)]);
+      updates.push('room_id = ?', 'room_name = ?');
+      params.push(parseInt(roomId), room.name);
+    }
+    
+    if (price !== undefined) {
+      updates.push('price = ?');
+      params.push(price ? parseFloat(price) : 0);
+    }
+    
+    if (updates.length > 0) {
+      params.push(itemId);
+      await db.run(`UPDATE items SET ${updates.join(', ')} WHERE id = ?`, params);
+    }
+    
+    const updatedItem = await db.get('SELECT * FROM items WHERE id = ?', [itemId]);
+    
+    res.json({
+      message: 'Item updated successfully',
+      item: updatedItem
+    });
+  } catch (error) {
+    console.error('Update item error:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 });
@@ -527,12 +662,14 @@ app.post('/api/items/:id/stroke', authenticateToken, async (req, res) => {
       [itemId, req.user.id, req.user.username, new Date()]
     );
     
+    const newStroke = await db.get('SELECT * FROM strokes WHERE id = ?', [result.id]);
+    
     res.json({
       message: 'Stroke added successfully',
       stroke: {
-        id: result.id,
+        id: newStroke.id,
         itemName: item.name,
-        createdAt: new Date()
+        createdAt: newStroke.created_at
       }
     });
   } catch (error) {
@@ -545,13 +682,28 @@ app.post('/api/items/:id/stroke', authenticateToken, async (req, res) => {
 app.get('/api/items/:id/analytics', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const itemId = parseInt(req.params.id);
+    const { billingPeriodId } = req.query;
     
     const item = await db.get('SELECT * FROM items WHERE id = ?', [itemId]);
     if (!item) {
       return res.status(404).json({ message: 'Item not found' });
     }
     
-    const itemStrokes = await db.all('SELECT * FROM strokes WHERE item_id = ? ORDER BY created_at DESC', [itemId]);
+    let strokeQuery = 'SELECT * FROM strokes WHERE item_id = ?';
+    let strokeParams = [itemId];
+    
+    // Filter strokes by billing period if specified
+    if (billingPeriodId && billingPeriodId !== 'all') {
+      const period = await db.get('SELECT * FROM billing_periods WHERE id = ?', [parseInt(billingPeriodId)]);
+      if (period) {
+        strokeQuery += ' AND created_at >= ? AND created_at <= ?';
+        strokeParams.push(period.start_date, period.end_date);
+      }
+    }
+    
+    strokeQuery += ' ORDER BY created_at DESC';
+    
+    const itemStrokes = await db.all(strokeQuery, strokeParams);
     
     // Group strokes by user
     const strokesByUser = {};
@@ -575,13 +727,11 @@ app.get('/api/items/:id/analytics', authenticateToken, requireAdmin, async (req,
         count: strokesByUser[username].length,
         lastStroke: strokesByUser[username][0].created_at
       })),
-      recentStrokes: itemStrokes
-        .slice(0, 10)
-        .map(stroke => ({
-          id: stroke.id,
-          username: stroke.username,
-          createdAt: stroke.created_at
-        }))
+      recentStrokes: itemStrokes.slice(0, 10).map(stroke => ({
+        id: stroke.id,
+        username: stroke.username,
+        createdAt: stroke.created_at
+      }))
     };
     
     res.json(analytics);
@@ -591,95 +741,30 @@ app.get('/api/items/:id/analytics', authenticateToken, requireAdmin, async (req,
   }
 });
 
-// Update item (Admin only)
-app.put('/api/items/:id', authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    const itemId = parseInt(req.params.id);
-    const { name, description, roomId, price } = req.body;
-    
-    const item = await db.get('SELECT * FROM items WHERE id = ?', [itemId]);
-    if (!item) {
-      return res.status(404).json({ message: 'Item not found' });
-    }
-    
-    let updateFields = [];
-    let updateValues = [];
-    
-    if (name && name.trim().length > 0) {
-      // Check if new name already exists in the same room
-      const targetRoomId = roomId ? parseInt(roomId) : item.room_id;
-      const existingItem = await db.get(
-        'SELECT * FROM items WHERE id != ? AND LOWER(name) = LOWER(?) AND room_id = ?', 
-        [itemId, name.trim(), targetRoomId]
-      );
-      if (existingItem) {
-        return res.status(400).json({ message: 'Item with this name already exists in this room' });
-      }
-      updateFields.push('name = ?');
-      updateValues.push(name.trim());
-    }
-    
-    if (description !== undefined) {
-      updateFields.push('description = ?');
-      updateValues.push(description ? description.trim() : '');
-    }
-    
-    if (roomId) {
-      const room = await db.get('SELECT * FROM rooms WHERE id = ?', [roomId]);
-      if (!room) {
-        return res.status(400).json({ message: 'Room not found' });
-      }
-      updateFields.push('room_id = ?', 'room_name = ?');
-      updateValues.push(parseInt(roomId), room.name);
-    }
-    
-    if (price !== undefined) {
-      updateFields.push('price = ?');
-      updateValues.push(price ? parseFloat(price) : 0);
-    }
-    
-    if (updateFields.length > 0) {
-      updateValues.push(itemId);
-      await db.run(
-        `UPDATE items SET ${updateFields.join(', ')} WHERE id = ?`,
-        updateValues
-      );
-    }
-    
-    // Get updated item
-    const updatedItem = await db.get('SELECT * FROM items WHERE id = ?', [itemId]);
-    
-    res.json({
-      message: 'Item updated successfully',
-      item: {
-        id: updatedItem.id,
-        name: updatedItem.name,
-        description: updatedItem.description,
-        roomId: updatedItem.room_id,
-        roomName: updatedItem.room_name,
-        price: updatedItem.price,
-        createdAt: updatedItem.created_at,
-        createdBy: updatedItem.created_by
-      }
-    });
-  } catch (error) {
-    console.error('Update item error:', error);
-    res.status(500).json({ message: 'Internal server error' });
-  }
-});
-
 // Reset strokes for item (Admin only)
 app.put('/api/items/:id/reset-strokes', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const itemId = parseInt(req.params.id);
+    const { billingPeriodId } = req.query;
     
     const item = await db.get('SELECT * FROM items WHERE id = ?', [itemId]);
     if (!item) {
       return res.status(404).json({ message: 'Item not found' });
     }
     
-    // Remove all strokes for this item
-    const result = await db.run('DELETE FROM strokes WHERE item_id = ?', [itemId]);
+    let deleteQuery = 'DELETE FROM strokes WHERE item_id = ?';
+    let deleteParams = [itemId];
+    
+    // Filter strokes by billing period if specified
+    if (billingPeriodId && billingPeriodId !== 'all') {
+      const period = await db.get('SELECT * FROM billing_periods WHERE id = ?', [parseInt(billingPeriodId)]);
+      if (period) {
+        deleteQuery += ' AND created_at >= ? AND created_at <= ?';
+        deleteParams.push(period.start_date, period.end_date);
+      }
+    }
+    
+    const result = await db.run(deleteQuery, deleteParams);
     
     res.json({
       message: `All strokes for "${item.name}" have been reset`,
@@ -702,7 +787,7 @@ app.post('/api/rooms', authenticateToken, requireAdmin, async (req, res) => {
     }
     
     // Check if room already exists
-    const existingRoom = await db.get('SELECT * FROM rooms WHERE LOWER(name) = LOWER(?)', [name.trim()]);
+    const existingRoom = await db.get('SELECT * FROM rooms WHERE LOWER(name) = LOWER(?)', [name]);
     if (existingRoom) {
       return res.status(400).json({ message: 'Room with this name already exists' });
     }
@@ -712,13 +797,7 @@ app.post('/api/rooms', authenticateToken, requireAdmin, async (req, res) => {
       [name.trim(), description ? description.trim() : '', new Date(), req.user.id]
     );
     
-    const newRoom = {
-      id: result.id,
-      name: name.trim(),
-      description: description ? description.trim() : '',
-      createdAt: new Date(),
-      createdBy: req.user.id
-    };
+    const newRoom = await db.get('SELECT * FROM rooms WHERE id = ?', [result.id]);
     
     res.json({
       message: 'Room created successfully',
@@ -733,20 +812,14 @@ app.post('/api/rooms', authenticateToken, requireAdmin, async (req, res) => {
 // Get all rooms
 app.get('/api/rooms', authenticateToken, async (req, res) => {
   try {
-    const rooms = await db.all(`
-      SELECT r.*, 
-      (SELECT COUNT(*) FROM items i WHERE i.room_id = r.id) as item_count
-      FROM rooms r 
-      ORDER BY r.name
-    `);
+    const rooms = await db.all('SELECT * FROM rooms ORDER BY name');
     
-    const roomsWithItemCounts = rooms.map(room => ({
-      id: room.id,
-      name: room.name,
-      description: room.description,
-      createdAt: room.created_at,
-      createdBy: room.created_by,
-      itemCount: room.item_count
+    const roomsWithItemCounts = await Promise.all(rooms.map(async (room) => {
+      const itemCount = await db.get('SELECT COUNT(*) as count FROM items WHERE room_id = ?', [room.id]);
+      return {
+        ...room,
+        itemCount: itemCount.count
+      };
     }));
     
     res.json({ rooms: roomsWithItemCounts });
@@ -767,33 +840,31 @@ app.put('/api/rooms/:id', authenticateToken, requireAdmin, async (req, res) => {
       return res.status(404).json({ message: 'Room not found' });
     }
     
-    let updateFields = [];
-    let updateValues = [];
-    
     if (name && name.trim().length > 0) {
       // Check if new name already exists
-      const existingRoom = await db.get(
-        'SELECT * FROM rooms WHERE id != ? AND LOWER(name) = LOWER(?)', 
-        [roomId, name.trim()]
-      );
+      const existingRoom = await db.get('SELECT * FROM rooms WHERE id != ? AND LOWER(name) = LOWER(?)', [roomId, name]);
       if (existingRoom) {
         return res.status(400).json({ message: 'Room with this name already exists' });
       }
-      updateFields.push('name = ?');
-      updateValues.push(name.trim());
+    }
+    
+    // Build update query dynamically
+    const updates = [];
+    const params = [];
+    
+    if (name && name.trim().length > 0) {
+      updates.push('name = ?');
+      params.push(name.trim());
     }
     
     if (description !== undefined) {
-      updateFields.push('description = ?');
-      updateValues.push(description ? description.trim() : '');
+      updates.push('description = ?');
+      params.push(description ? description.trim() : '');
     }
     
-    if (updateFields.length > 0) {
-      updateValues.push(roomId);
-      await db.run(
-        `UPDATE rooms SET ${updateFields.join(', ')} WHERE id = ?`,
-        updateValues
-      );
+    if (updates.length > 0) {
+      params.push(roomId);
+      await db.run(`UPDATE rooms SET ${updates.join(', ')} WHERE id = ?`, params);
       
       // Update room name in all items
       if (name && name.trim().length > 0) {
@@ -801,18 +872,11 @@ app.put('/api/rooms/:id', authenticateToken, requireAdmin, async (req, res) => {
       }
     }
     
-    // Get updated room
     const updatedRoom = await db.get('SELECT * FROM rooms WHERE id = ?', [roomId]);
     
     res.json({
       message: 'Room updated successfully',
-      room: {
-        id: updatedRoom.id,
-        name: updatedRoom.name,
-        description: updatedRoom.description,
-        createdAt: updatedRoom.created_at,
-        createdBy: updatedRoom.created_by
-      }
+      room: updatedRoom
     });
   } catch (error) {
     console.error('Update room error:', error);
@@ -855,174 +919,32 @@ app.delete('/api/rooms/:id', authenticateToken, requireAdmin, async (req, res) =
 // Get user's strokes (User only)
 app.get('/api/user/strokes', authenticateToken, async (req, res) => {
   try {
-    const userStrokes = {};
-    const userStrokesList = await db.all('SELECT * FROM strokes WHERE user_id = ?', [req.user.id]);
+    const { billingPeriodId } = req.query;
     
-    userStrokesList.forEach(stroke => {
-      if (!userStrokes[stroke.item_id]) {
-        userStrokes[stroke.item_id] = 0;
+    let query = 'SELECT item_id, COUNT(*) as count FROM strokes WHERE user_id = ?';
+    let params = [req.user.id];
+    
+    // Filter strokes by billing period if specified
+    if (billingPeriodId && billingPeriodId !== 'all') {
+      const period = await db.get('SELECT * FROM billing_periods WHERE id = ?', [parseInt(billingPeriodId)]);
+      if (period) {
+        query += ' AND created_at >= ? AND created_at <= ?';
+        params.push(period.start_date, period.end_date);
       }
-      userStrokes[stroke.item_id]++;
+    }
+    
+    query += ' GROUP BY item_id';
+    
+    const userStrokes = await db.all(query, params);
+    
+    const strokesObj = {};
+    userStrokes.forEach(stroke => {
+      strokesObj[stroke.item_id] = stroke.count;
     });
     
-    res.json(userStrokes);
+    res.json(strokesObj);
   } catch (error) {
     console.error('User strokes error:', error);
-    res.status(500).json({ message: 'Internal server error' });
-  }
-});
-
-// Billing Period Management Endpoints
-// Create new billing period (Admin only)
-app.post('/api/billing-periods', authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    const { name, startDate, endDate } = req.body;
-    
-    if (!name || !startDate || !endDate) {
-      return res.status(400).json({ message: 'Name, start date and end date are required' });
-    }
-    
-    // Validate dates
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    
-    if (start >= end) {
-      return res.status(400).json({ message: 'Start date must be before end date' });
-    }
-    
-    // Check for overlapping periods
-    const overlapping = await db.get(
-      'SELECT * FROM billing_periods WHERE (start_date <= ? AND end_date >= ?) OR (start_date <= ? AND end_date >= ?)',
-      [endDate, startDate, startDate, endDate]
-    );
-    
-    if (overlapping) {
-      return res.status(400).json({ message: 'Billing period overlaps with existing period' });
-    }
-    
-    const result = await db.run(
-      'INSERT INTO billing_periods (name, start_date, end_date, created_by) VALUES (?, ?, ?, ?)',
-      [name.trim(), startDate, endDate, req.user.id]
-    );
-    
-    res.json({
-      message: 'Billing period created successfully',
-      period: {
-        id: result.id,
-        name: name.trim(),
-        startDate,
-        endDate,
-        createdBy: req.user.id
-      }
-    });
-  } catch (error) {
-    console.error('Create billing period error:', error);
-    res.status(500).json({ message: 'Internal server error' });
-  }
-});
-
-// Get all billing periods
-app.get('/api/billing-periods', authenticateToken, async (req, res) => {
-  try {
-    const periods = await db.all(
-      'SELECT * FROM billing_periods ORDER BY start_date DESC'
-    );
-    res.json({ periods });
-  } catch (error) {
-    console.error('Get billing periods error:', error);
-    res.status(500).json({ message: 'Internal server error' });
-  }
-});
-
-// Set active billing period (Admin only)
-app.put('/api/billing-periods/:id/activate', authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    const periodId = parseInt(req.params.id);
-    
-    // First deactivate all periods
-    await db.run('UPDATE billing_periods SET is_active = 0');
-    
-    // Activate the selected period
-    await db.run('UPDATE billing_periods SET is_active = 1 WHERE id = ?', [periodId]);
-    
-    res.json({ message: 'Billing period activated successfully' });
-  } catch (error) {
-    console.error('Activate billing period error:', error);
-    res.status(500).json({ message: 'Internal server error' });
-  }
-});
-
-// Get current active billing period
-app.get('/api/billing-periods/active', authenticateToken, async (req, res) => {
-  try {
-    const activePeriod = await db.get('SELECT * FROM billing_periods WHERE is_active = 1');
-    res.json({ period: activePeriod });
-  } catch (error) {
-    console.error('Get active billing period error:', error);
-    res.status(500).json({ message: 'Internal server error' });
-  }
-});
-
-// Get user's strokes for specific billing period
-app.get('/api/user/strokes/period/:periodId', authenticateToken, async (req, res) => {
-  try {
-    const periodId = parseInt(req.params.periodId);
-    
-    // Get billing period
-    const period = await db.get('SELECT * FROM billing_periods WHERE id = ?', [periodId]);
-    if (!period) {
-      return res.status(404).json({ message: 'Billing period not found' });
-    }
-    
-    // Get user's strokes within the period
-    const strokes = await db.all(
-      `SELECT s.*, i.name as item_name, i.price 
-       FROM strokes s 
-       JOIN items i ON s.item_id = i.id 
-       WHERE s.user_id = ? AND s.created_at >= ? AND s.created_at <= ?`,
-      [req.user.id, period.start_date, period.end_date]
-    );
-    
-    // Group by item
-    const userStrokes = {};
-    strokes.forEach(stroke => {
-      if (!userStrokes[stroke.item_id]) {
-        userStrokes[stroke.item_id] = {
-          count: 0,
-          itemName: stroke.item_name,
-          price: stroke.price,
-          total: 0
-        };
-      }
-      userStrokes[stroke.item_id].count++;
-      userStrokes[stroke.item_id].total = userStrokes[stroke.item_id].count * stroke.price;
-    });
-    
-    res.json({ 
-      period,
-      strokes: userStrokes,
-      totalCost: Object.values(userStrokes).reduce((sum, item) => sum + item.total, 0)
-    });
-  } catch (error) {
-    console.error('Get user strokes for period error:', error);
-    res.status(500).json({ message: 'Internal server error' });
-  }
-});
-
-// Delete billing period (Admin only)
-app.delete('/api/billing-periods/:id', authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    const periodId = parseInt(req.params.id);
-    
-    const result = await db.run('DELETE FROM billing_periods WHERE id = ?', [periodId]);
-    
-    if (result.changes === 0) {
-      return res.status(404).json({ message: 'Billing period not found' });
-    }
-    
-    res.json({ message: 'Billing period deleted successfully' });
-  } catch (error) {
-    console.error('Delete billing period error:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 });

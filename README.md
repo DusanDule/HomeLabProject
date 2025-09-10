@@ -127,6 +127,50 @@ admin-webapp/
 - Implementiere Rate Limiting für Login-Versuche
 - Verwende eine echte Datenbank statt In-Memory Storage
 
+## 🐳 Docker Deployment
+
+### Schnellstart mit Docker Compose
+
+```bash
+# Repository klonen
+git clone <repository-url>
+cd HomeLabProject
+
+# Deploy mit einem Befehl
+docker-compose up -d
+```
+
+### Manueller Docker Build
+
+```bash
+# Docker Image bauen
+docker build -t admin-webapp .
+
+# Container starten
+docker run -p 3000:5000 admin-webapp
+```
+
+### Deployment-Script
+
+Für einfaches Deployment:
+
+```bash
+# Linux/Mac
+chmod +x deploy.sh
+./deploy.sh
+```
+
+Die Anwendung ist dann unter http://localhost:3000 erreichbar.
+
+### Login-Daten
+
+- **Admin:** `admin` / `admin123`
+- **User:** `dule` / `password123`
+
+### Datenbank
+
+Die SQLite-Datenbank wird automatisch erstellt und in einem Volume gespeichert (`./data/database.sqlite`).
+
 ## Nächste Schritte
 
 Diese App ist als Basis konzipiert. Du kannst sie erweitern um:

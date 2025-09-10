@@ -25,6 +25,9 @@ FROM node:18-alpine AS production
 
 WORKDIR /app
 
+# Install sqlite3 dependencies
+RUN apk add --no-cache python3 make g++ sqlite
+
 # Copy server package files
 COPY server/package*.json ./
 
@@ -36,6 +39,9 @@ COPY server/ ./
 
 # Copy built React app from builder stage
 COPY --from=builder /app/client/build ./public
+
+# Create data directory for SQLite database
+RUN mkdir -p /app/data
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs

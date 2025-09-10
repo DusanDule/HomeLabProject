@@ -2094,3 +2094,211 @@
   background: #fff5f5;
   color: #dc3545;
 }
+
+/* Billing Period Styles */
+.billing-period-selector {
+  margin-bottom: 15px;
+  padding: 15px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.billing-period-selector label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: #495057;
+}
+
+.billing-period-selector select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  background: white;
+  font-size: 14px;
+}
+
+.billing-period-filter {
+  margin-left: 15px;
+}
+
+.billing-period-filter label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 500;
+  color: #495057;
+  font-size: 12px;
+}
+
+.billing-period-filter select {
+  padding: 6px 10px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  background: white;
+  font-size: 12px;
+  min-width: 200px;
+}
+
+.billing-period-management {
+  background: white;
+  border-radius: 12px;
+  padding: 30px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.create-billing-period-section {
+  margin-bottom: 30px;
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.create-billing-period-form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.periods-table {
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #e9ecef;
+}
+
+.periods-table .table-header {
+  background: #f8f9fa;
+  font-weight: 600;
+  color: #495057;
+  border-bottom: 2px solid #e9ecef;
+}
+
+.periods-table .table-row {
+  border-bottom: 1px solid #e9ecef;
+}
+
+.periods-table .table-row:last-child {
+  border-bottom: none;
+}
+
+.status-badge {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.status-badge.active {
+  background: #d4edda;
+  color: #155724;
+}
+
+.status-badge.inactive {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.activate-btn {
+  background: #28a745;
+  color: white;
+  border: none;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  margin-right: 5px;
+}
+
+.activate-btn:hover {
+  background: #218838;
+}
+
+/* Item Edit Form Styles */
+.item-edit-form {
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 20px;
+  margin: 15px 0;
+}
+
+.item-edit-form h4 {
+  margin: 0 0 15px 0;
+  color: #495057;
+  font-size: 16px;
+}
+
+.edit-item-form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.edit-item-form .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.edit-item-form .form-group label {
+  font-weight: 500;
+  color: #495057;
+  font-size: 12px;
+}
+
+.edit-item-form .form-group input,
+.edit-item-form .form-group select {
+  padding: 8px 12px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  background: white;
+  font-size: 14px;
+}
+
+.edit-item-form .form-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.edit-item-form .form-actions button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.edit-item-form .form-actions .login-btn {
+  background: #007bff;
+  color: white;
+}
+
+.edit-item-form .form-actions .login-btn:hover {
+  background: #0056b3;
+}
+
+.edit-item-form .form-actions .switch-btn {
+  background: #6c757d;
+  color: white;
+}
+
+.edit-item-form .form-actions .switch-btn:hover {
+  background: #545b62;
+}
+
+/* Responsive Design Updates */
+@media (max-width: 768px) {
+  .billing-period-filter {
+    margin-left: 0;
+    margin-top: 10px;
+  }
+  
+  .billing-period-filter select {
+    min-width: 150px;
+  }
+}

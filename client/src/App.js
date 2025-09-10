@@ -37,6 +37,13 @@ function App() {
   const [userStrokes, setUserStrokes] = useState({}); // Track user's strokes per item
   const [showCategoryMenu, setShowCategoryMenu] = useState(false);
   const [showNavMenu, setShowNavMenu] = useState(false);
+  const [billingPeriods, setBillingPeriods] = useState([]);
+  const [activeBillingPeriod, setActiveBillingPeriod] = useState(null);
+  const [selectedBillingPeriod, setSelectedBillingPeriod] = useState(null);
+  const [showBillingPeriodManagement, setShowBillingPeriodManagement] = useState(false);
+  const [newBillingPeriod, setNewBillingPeriod] = useState({ name: '', startDate: '', endDate: '' });
+  const [userStrokesForPeriod, setUserStrokesForPeriod] = useState({});
+  const [periodTotalCost, setPeriodTotalCost] = useState(0);
 
   useEffect(() => {
     // Check if user is already logged in
@@ -60,11 +67,15 @@ function App() {
         fetchInvitationCode();
         fetchItems();
         fetchRooms();
+        fetchBillingPeriods();
+        fetchActiveBillingPeriod();
         setShowItemManagement(true);
       } else {
         fetchItems();
         fetchRooms();
         fetchUserStrokes();
+        fetchBillingPeriods();
+        fetchActiveBillingPeriod();
         setShowItemManagement(true);
       }
     } catch (error) {
@@ -287,6 +298,109 @@ function App() {
     }
   };
 
+  const fetchBillingPeriods = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get('/api/billing-periods', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setBillingPeriods(response.data.periods);
+    } catch (error) {
+      console.error('Error fetching billing periods:', error);
+    }
+  };
+
+  const fetchActiveBillingPeriod = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get('/api/billing-periods/active', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setActiveBillingPeriod(response.data.period);
+      if (!selectedBillingPeriod && response.data.period) {
+        setSelectedBillingPeriod(response.data.period.id);
+      }
+    } catch (error) {
+      console.error('Error fetching active billing period:', error);
+    }
+  };
+
+  const fetchUserStrokesForPeriod = async (periodId) => {
+    if (!periodId) return;
+    
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`/api/user/strokes/period/${periodId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setUserStrokesForPeriod(response.data.strokes);
+      setPeriodTotalCost(response.data.totalCost);
+    } catch (error) {
+      console.error('Error fetching user strokes for period:', error);
+    }
+  };
+
+  const handleCreateBillingPeriod = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post('/api/billing-periods', newBillingPeriod, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      setNewBillingPeriod({ name: '', startDate: '', endDate: '' });
+      fetchBillingPeriods();
+      alert('Abrechnungszeitraum erfolgreich erstellt!');
+    } catch (error) {
+      setError(error.response?.data?.message || 'Fehler beim Erstellen des Abrechnungszeitraums');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleActivateBillingPeriod = async (periodId) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.put(`/api/billing-periods/${periodId}/activate`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      fetchActiveBillingPeriod();
+      fetchBillingPeriods();
+      alert('Abrechnungszeitraum erfolgreich aktiviert!');
+    } catch (error) {
+      setError(error.response?.data?.message || 'Fehler beim Aktivieren des Abrechnungszeitraums');
+    }
+  };
+
+  const handleDeleteBillingPeriod = async (periodId) => {
+    if (!window.confirm('Bist du sicher, dass du diesen Abrechnungszeitraum löschen möchtest?')) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete(`/api/billing-periods/${periodId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      fetchBillingPeriods();
+      alert('Abrechnungszeitraum erfolgreich gelöscht!');
+    } catch (error) {
+      setError(error.response?.data?.message || 'Fehler beim Löschen des Abrechnungszeitraums');
+    }
+  };
+
+  const handleBillingPeriodChange = (periodId) => {
+    setSelectedBillingPeriod(periodId);
+    if (user?.role === 'user') {
+      fetchUserStrokesForPeriod(periodId);
+    }
+  };
+
   const calculateUserTotal = () => {
     let total = 0;
     items.forEach(item => {
@@ -294,6 +408,11 @@ function App() {
       total += userStrokeCount * (item.price || 0);
     });
     return total;
+  };
+
+  const calculateUserTotalForPeriod = () => {
+    if (!selectedBillingPeriod) return calculateUserTotal();
+    return periodTotalCost;
   };
 
   const handleResetStrokes = async (itemId, itemName) => {
@@ -577,6 +696,7 @@ function App() {
                           setShowItemManagement(false);
                           setShowRoomManagement(false);
                           setShowChangePassword(false);
+                          setShowBillingPeriodManagement(false);
                           setShowAdminMenu(!showAdminMenu);
                           setShowNavMenu(false);
                           if (!showAdminMenu) {
@@ -587,6 +707,24 @@ function App() {
                         className={`nav-dropdown-btn ${showAdminMenu ? 'active' : ''}`}
                       >
                         👥 User Management
+                      </button>
+                      <button 
+                        onClick={() => {
+                          // Reset all other screens
+                          setShowItemManagement(false);
+                          setShowRoomManagement(false);
+                          setShowChangePassword(false);
+                          setShowAdminMenu(false);
+                          setShowBillingPeriodManagement(!showBillingPeriodManagement);
+                          setShowNavMenu(false);
+                          if (!showBillingPeriodManagement) {
+                            fetchBillingPeriods();
+                            fetchActiveBillingPeriod();
+                          }
+                        }} 
+                        className={`nav-dropdown-btn ${showBillingPeriodManagement ? 'active' : ''}`}
+                      >
+                        📅 Abrechnungszeiträume
                       </button>
                     </>
                   )}
@@ -911,19 +1049,36 @@ function App() {
                       <h3>{user?.role === 'admin' ? 'Alle Items' : 'Verfügbare Items'}</h3>
                       <div className="items-controls">
                         {user?.role === 'admin' ? (
-                          <div className="room-filter">
-                            <label htmlFor="room-filter">Kategorie filtern:</label>
-                            <select
-                              id="room-filter"
-                              value={selectedRoom}
-                              onChange={(e) => handleRoomFilter(e.target.value)}
-                            >
-                              <option value="all">Alle Kategorien</option>
-                              {rooms.map(room => (
-                                <option key={room.id} value={room.id}>{room.name}</option>
-                              ))}
-                            </select>
-                          </div>
+                          <>
+                            <div className="room-filter">
+                              <label htmlFor="room-filter">Kategorie filtern:</label>
+                              <select
+                                id="room-filter"
+                                value={selectedRoom}
+                                onChange={(e) => handleRoomFilter(e.target.value)}
+                              >
+                                <option value="all">Alle Kategorien</option>
+                                {rooms.map(room => (
+                                  <option key={room.id} value={room.id}>{room.name}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="billing-period-filter">
+                              <label htmlFor="billing-period-filter">Abrechnungszeitraum:</label>
+                              <select
+                                id="billing-period-filter"
+                                value={selectedBillingPeriod || ''}
+                                onChange={(e) => handleBillingPeriodChange(e.target.value)}
+                              >
+                                <option value="">Alle Zeiträume</option>
+                                {billingPeriods.map(period => (
+                                  <option key={period.id} value={period.id}>
+                                    {period.name} ({new Date(period.start_date).toLocaleDateString('de-DE')} - {new Date(period.end_date).toLocaleDateString('de-DE')})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </>
                         ) : (
                           <div className="room-tabs">
                             <button 
@@ -1109,6 +1264,95 @@ function App() {
                       ))}
                     </div>
                   )}
+                  
+                  {/* Edit Forms */}
+                  {items.map(item => (
+                    showItemEdit[item.id] && (
+                      <div key={`edit-${item.id}`} className="item-edit-form">
+                        <h4>✏️ Item bearbeiten: {item.name}</h4>
+                        <form onSubmit={(e) => {
+                          e.preventDefault();
+                          handleUpdateItem(item.id);
+                        }} className="edit-item-form">
+                          <div className="form-group">
+                            <label htmlFor={`edit-name-${item.id}`}>Name:</label>
+                            <input
+                              type="text"
+                              id={`edit-name-${item.id}`}
+                              value={editItemData[item.id]?.name || ''}
+                              onChange={(e) => setEditItemData({
+                                ...editItemData,
+                                [item.id]: { ...editItemData[item.id], name: e.target.value }
+                              })}
+                              required
+                            />
+                          </div>
+                          <div className="form-group">
+                            <label htmlFor={`edit-description-${item.id}`}>Beschreibung:</label>
+                            <input
+                              type="text"
+                              id={`edit-description-${item.id}`}
+                              value={editItemData[item.id]?.description || ''}
+                              onChange={(e) => setEditItemData({
+                                ...editItemData,
+                                [item.id]: { ...editItemData[item.id], description: e.target.value }
+                              })}
+                            />
+                          </div>
+                          <div className="form-group">
+                            <label htmlFor={`edit-room-${item.id}`}>Kategorie:</label>
+                            <select
+                              id={`edit-room-${item.id}`}
+                              value={editItemData[item.id]?.roomId || ''}
+                              onChange={(e) => setEditItemData({
+                                ...editItemData,
+                                [item.id]: { ...editItemData[item.id], roomId: e.target.value }
+                              })}
+                              required
+                            >
+                              <option value="">Kategorie auswählen...</option>
+                              {rooms.map(room => (
+                                <option key={room.id} value={room.id}>{room.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="form-group">
+                            <label htmlFor={`edit-price-${item.id}`}>Preis (€):</label>
+                            <input
+                              type="number"
+                              id={`edit-price-${item.id}`}
+                              value={editItemData[item.id]?.price || ''}
+                              onChange={(e) => setEditItemData({
+                                ...editItemData,
+                                [item.id]: { ...editItemData[item.id], price: e.target.value }
+                              })}
+                              step="0.01"
+                              min="0"
+                            />
+                          </div>
+                          <div className="form-actions">
+                            <button 
+                              type="submit" 
+                              className="login-btn"
+                              disabled={loading}
+                            >
+                              {loading ? 'Speichern...' : 'Speichern'}
+                            </button>
+                            <button 
+                              type="button" 
+                              onClick={() => {
+                                setShowItemEdit({ ...showItemEdit, [item.id]: false });
+                                setEditItemData({ ...editItemData, [item.id]: {} });
+                              }}
+                              className="switch-btn"
+                            >
+                              Abbrechen
+                            </button>
+                          </div>
+                        </form>
+                      </div>
+                    )
+                  ))}
                 </div>
               </div>
             ) : showItemManagement && user?.role === 'user' ? (
@@ -1334,6 +1578,96 @@ function App() {
                         🔄 Aktualisieren
                       </button>
                     </div>
+                  </div>
+                </div>
+              </div>
+            ) : showBillingPeriodManagement && user?.role === 'admin' ? (
+              <div className="billing-period-management">
+                <h2>📅 Abrechnungszeitraum Management</h2>
+                
+                <div className="create-billing-period-section">
+                  <h3>Neuen Abrechnungszeitraum erstellen</h3>
+                  <form onSubmit={handleCreateBillingPeriod} className="create-billing-period-form">
+                    <div className="form-group">
+                      <label htmlFor="period-name">Name:</label>
+                      <input
+                        type="text"
+                        id="period-name"
+                        value={newBillingPeriod.name}
+                        onChange={(e) => setNewBillingPeriod({ ...newBillingPeriod, name: e.target.value })}
+                        required
+                        placeholder="z.B. Januar 2025, Q1 2025..."
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label htmlFor="period-start">Startdatum:</label>
+                      <input
+                        type="date"
+                        id="period-start"
+                        value={newBillingPeriod.startDate}
+                        onChange={(e) => setNewBillingPeriod({ ...newBillingPeriod, startDate: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label htmlFor="period-end">Enddatum:</label>
+                      <input
+                        type="date"
+                        id="period-end"
+                        value={newBillingPeriod.endDate}
+                        onChange={(e) => setNewBillingPeriod({ ...newBillingPeriod, endDate: e.target.value })}
+                        required
+                      />
+                    </div>
+                    {error && <div className="error-message">{error}</div>}
+                    <button 
+                      type="submit" 
+                      className="login-btn"
+                      disabled={loading}
+                    >
+                      {loading ? 'Erstellen...' : 'Abrechnungszeitraum erstellen'}
+                    </button>
+                  </form>
+                </div>
+
+                <div className="billing-periods-list">
+                  <h3>Alle Abrechnungszeiträume</h3>
+                  <div className="periods-table">
+                    <div className="table-header">
+                      <div>Name</div>
+                      <div>Startdatum</div>
+                      <div>Enddatum</div>
+                      <div>Status</div>
+                      <div>Aktionen</div>
+                    </div>
+                    {billingPeriods.map(period => (
+                      <div key={period.id} className="table-row">
+                        <div>{period.name}</div>
+                        <div>{new Date(period.start_date).toLocaleDateString('de-DE')}</div>
+                        <div>{new Date(period.end_date).toLocaleDateString('de-DE')}</div>
+                        <div>
+                          <span className={`status-badge ${period.is_active ? 'active' : 'inactive'}`}>
+                            {period.is_active ? '✅ Aktiv' : '⏸️ Inaktiv'}
+                          </span>
+                        </div>
+                        <div className="action-buttons">
+                          {!period.is_active && (
+                            <button 
+                              onClick={() => handleActivateBillingPeriod(period.id)}
+                              className="activate-btn"
+                            >
+                              ✅ Aktivieren
+                            </button>
+                          )}
+                          <button 
+                            onClick={() => handleDeleteBillingPeriod(period.id)}
+                            className="delete-btn"
+                          >
+                            🗑️ Löschen
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
